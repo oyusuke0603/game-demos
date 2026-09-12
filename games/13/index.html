@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ブラインドタッチゲーム 🐾 動物編（ローマ字）</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
+  :root{
+    --bg:#fef9f0;--surface:#fff;--accent1:#ff8c42;--accent2:#4ecdc4;
+    --accent3:#ffe66d;--text:#2d2d2d;--soft:#6b6b6b;--correct:#3cb371;
+    --wrong:#e74c3c;--kbg:#f0ebe0;--kborder:#d4c9b0;--sh:rgba(0,0,0,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'M PLUS Rounded 1c',sans-serif;background:var(--bg);min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;padding:20px;
+    background-image:radial-gradient(circle at 10% 20%,rgba(255,140,66,.08) 0%,transparent 40%),
+    radial-gradient(circle at 90% 80%,rgba(78,205,196,.08) 0%,transparent 40%)}
+  h1{font-size:2rem;font-weight:900;color:var(--accent1);text-align:center;margin-bottom:4px;
+    text-shadow:2px 2px 0 rgba(255,140,66,.2)}
+  .sub{font-size:.88rem;color:var(--soft);text-align:center;margin-bottom:16px}
+  .stats{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+  .sbox{background:var(--surface);border-radius:14px;padding:10px 18px;
+    box-shadow:0 3px 10px var(--sh);text-align:center;min-width:82px}
+  .slbl{font-size:.66rem;color:var(--soft);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .sval{font-size:1.5rem;font-weight:900;color:var(--text);line-height:1.1}
+  .sval.t{color:var(--accent1)}.sval.s{color:var(--accent2)}.sval.a{color:var(--correct)}
+  .game-area{display:flex;gap:16px;align-items:flex-start;width:100%;max-width:920px;
+    margin-bottom:16px;flex-wrap:wrap;justify-content:center}
+
+  /* ANIMAL CARD */
+  .acard{background:var(--surface);border-radius:24px;box-shadow:0 6px 24px var(--sh);
+    padding:20px;width:240px;text-align:center;flex-shrink:0}
+  .acard.bounce{animation:bounce .4s ease}
+  @keyframes bounce{0%{transform:scale(1)}40%{transform:scale(1.08)}70%{transform:scale(.96)}100%{transform:scale(1)}}
+  .aemoji{font-size:5.5rem;display:block;margin-bottom:8px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.15))}
+  .anjp{font-size:1.8rem;font-weight:900;color:var(--text);margin-bottom:2px;letter-spacing:.05em}
+  .ahint{font-size:.75rem;color:var(--soft);margin-bottom:14px}
+
+  /* KANA CHARS (hiragana display) */
+  .kana-row{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;margin-bottom:10px}
+  .kchar{
+    display:flex;flex-direction:column;align-items:center;
+    border:2px solid var(--kborder);border-radius:10px;
+    background:var(--kbg);padding:4px 6px;min-width:34px;
+    transition:all .15s;
+  }
+  .kchar .kana{font-size:1.2rem;font-weight:700;color:#555;line-height:1.2}
+  .kchar .roma{font-size:.65rem;font-weight:700;color:var(--soft);letter-spacing:.03em;text-transform:uppercase}
+  .kchar.done{background:var(--correct);border-color:var(--correct)}
+  .kchar.done .kana{color:#fff}.kchar.done .roma{color:rgba(255,255,255,.8)}
+  .kchar.cur{background:var(--accent3);border-color:var(--accent1);transform:scale(1.1);
+    box-shadow:0 2px 8px rgba(255,140,66,.4)}
+  .kchar.cur .kana{color:var(--text)}.kchar.cur .roma{color:#a06010}
+  .kchar.wrg{background:var(--wrong);border-color:var(--wrong);animation:shake .3s ease}
+  .kchar.wrg .kana{color:#fff}.kchar.wrg .roma{color:rgba(255,255,255,.8)}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+
+  /* ROMAJI progress bar (letter boxes for current mora) */
+  .roma-progress{display:flex;gap:4px;justify-content:center;margin-bottom:4px;min-height:36px}
+  .rlet{font-size:1.1rem;font-weight:900;width:26px;height:32px;display:flex;align-items:center;
+    justify-content:center;border-radius:7px;border:2px solid var(--kborder);background:var(--kbg);
+    color:#4a4a4a;text-transform:uppercase;transition:all .12s}
+  .rlet.typed{background:var(--correct);border-color:var(--correct);color:#fff}
+  .rlet.cur{background:var(--accent3);border-color:var(--accent1);color:var(--text);
+    transform:scale(1.1);box-shadow:0 2px 6px rgba(255,140,66,.4)}
+
+  /* TYPING SECTION */
+  .tsec{flex:1;min-width:270px;max-width:600px}
+  .fb{text-align:center;font-size:1.2rem;font-weight:900;min-height:36px;margin-bottom:8px}
+  .fb.ok{color:var(--correct)}.fb.ng{color:var(--wrong)}
+
+  /* Hidden actual input */
+  #inp{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+
+  /* Fake input display */
+  .fake-input{
+    width:100%;padding:12px 18px;font-size:1.2rem;font-family:inherit;font-weight:700;
+    border:3px solid var(--kborder);border-radius:16px;background:var(--surface);color:var(--text);
+    letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;min-height:52px;
+    cursor:text;transition:border-color .2s;display:flex;align-items:center;gap:3px;
+    flex-wrap:wrap;
+  }
+  .fake-input.focused{border-color:var(--accent1);box-shadow:0 0 0 4px rgba(255,140,66,.15)}
+  .fake-input.sf{animation:sf .4s ease}
+  @keyframes sf{0%,100%{background:var(--surface)}50%{background:rgba(60,179,113,.2)}}
+  .fi-char{font-size:1.1rem;font-weight:900;padding:1px 3px;border-radius:5px}
+  .fi-char.ok{color:var(--correct)}.fi-char.ng{color:var(--wrong)}
+  .fi-cursor{display:inline-block;width:2px;height:1.2em;background:var(--accent1);
+    border-radius:2px;animation:blink .9s step-end infinite;vertical-align:middle;margin-left:1px}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+  .pbw{background:var(--kbg);border-radius:99px;height:10px;margin-bottom:12px;overflow:hidden}
+  .pb{height:100%;background:linear-gradient(90deg,var(--accent2),var(--correct));border-radius:99px;transition:width .3s}
+
+  .nxtbox{background:var(--surface);border-radius:14px;padding:11px 15px;margin-bottom:12px;box-shadow:0 3px 10px var(--sh)}
+  .nxtlbl{font-size:.66rem;color:var(--soft);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .nxtitems{display:flex;gap:8px;flex-wrap:wrap}
+  .nxtitem{font-size:.82rem;font-weight:700;color:var(--soft);background:var(--bg);padding:3px 10px;border-radius:20px}
+
+  /* KEYBOARD */
+  .kb{background:var(--surface);border-radius:20px;padding:13px;box-shadow:0 4px 16px var(--sh);
+    width:100%;max-width:600px;margin:0 auto 16px}
+  .krow{display:flex;justify-content:center;gap:4px;margin-bottom:4px}
+  .key{width:42px;height:42px;border-radius:8px;background:var(--kbg);border:1.5px solid var(--kborder);
+    display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;
+    color:#4a4a4a;font-family:inherit;transition:all .1s;box-shadow:0 2px 0 var(--kborder);flex-shrink:0}
+  .key.active{background:var(--accent1);border-color:#e07030;color:#fff;transform:translateY(2px);box-shadow:none}
+  .key.ck{background:var(--correct);border-color:#2d9d60;color:#fff;transform:translateY(2px);box-shadow:none}
+  .key.wide{width:56px}.key.sp{width:200px}
+
+  /* OVERLAYS */
+  .overlay{position:fixed;inset:0;background:rgba(254,249,240,.96);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;z-index:100;gap:16px;padding:20px}
+  .overlay h2{font-size:1.8rem;font-weight:900;color:var(--accent1)}
+  .overlay p{color:var(--soft);font-size:.92rem;text-align:center;max-width:440px;line-height:1.7}
+  .bigbtn{background:var(--accent1);color:#fff;border:none;border-radius:16px;padding:14px 36px;
+    font-size:1.1rem;font-weight:900;font-family:inherit;cursor:pointer;box-shadow:0 4px 0 #c96a1e;transition:all .15s}
+  .bigbtn:hover{transform:translateY(-2px);box-shadow:0 6px 0 #c96a1e}
+  .bigbtn:active{transform:translateY(2px);box-shadow:0 2px 0 #c96a1e}
+  .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:340px}
+  .rbox{background:var(--surface);border-radius:14px;padding:14px;text-align:center;box-shadow:0 4px 14px var(--sh)}
+  .rbox .num{font-size:1.8rem;font-weight:900;color:var(--accent1)}
+  .rbox .lbl{font-size:.73rem;color:var(--soft);font-weight:700}
+  .remoji{font-size:3rem;letter-spacing:4px}
+  .msel{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .mbtn{background:var(--surface);border:2.5px solid var(--kborder);border-radius:14px;
+    padding:10px 18px;font-family:inherit;font-size:.88rem;font-weight:700;color:var(--soft);
+    cursor:pointer;transition:all .15s;text-align:center}
+  .mbtn:hover,.mbtn.sel{border-color:var(--accent1);color:var(--accent1);background:rgba(255,140,66,.07)}
+  .mbtn .mi{font-size:1.4rem;display:block;margin-bottom:2px}
+  .click-msg{font-size:.8rem;color:var(--soft);padding:6px 14px;background:var(--surface);
+    border-radius:10px;border:1.5px dashed var(--kborder)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<h1>🐾 どうぶつタイピング</h1>
+<p class="sub">ブラインドタッチゲーム・動物編（ローマ字入力）</p>
+
+<div class="stats">
+  <div class="sbox"><div class="slbl">⏱ タイム</div><div class="sval t" id="td">60</div></div>
+  <div class="sbox"><div class="slbl">✅ 正解</div><div class="sval s" id="sd">0</div></div>
+  <div class="sbox"><div class="slbl">💥 ミス</div><div class="sval" style="color:var(--wrong)" id="md">0</div></div>
+  <div class="sbox"><div class="slbl">🎯 精度</div><div class="sval a" id="ad">-</div></div>
+</div>
+
+<div class="game-area">
+  <!-- ANIMAL CARD -->
+  <div class="acard" id="acard">
+    <span class="aemoji" id="aemoji">🐶</span>
+    <div class="anjp" id="anjp">いぬ</div>
+    <div class="ahint" id="ahint">Dog / 犬</div>
+    <!-- kana chars with romaji hints -->
+    <div class="kana-row" id="kanarow"></div>
+    <!-- romaji letter progress for current mora -->
+    <div class="roma-progress" id="romarow"></div>
+  </div>
+
+  <!-- TYPING SECTION -->
+  <div class="tsec">
+    <div class="fb" id="fb"></div>
+    <!-- Hidden real input -->
+    <input type="text" id="inp" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" tabindex="0" />
+    <!-- Fake visual input -->
+    <div class="fake-input" id="fake-input" onclick="focusInput()">
+      <span class="fi-cursor" id="cursor"></span>
+    </div>
+    <div class="pbw"><div class="pb" id="pb" style="width:100%"></div></div>
+    <div class="nxtbox">
+      <div class="nxtlbl">▶ 次の問題</div>
+      <div class="nxtitems" id="ni"></div>
+    </div>
+    <p class="click-msg" id="clickmsg">👆 入力エリアをクリック／タップしてスタート</p>
+  </div>
+</div>
+
+<!-- KEYBOARD -->
+<div class="kb">
+  <div class="krow">
+    <div class="key" data-k="q">Q</div><div class="key" data-k="w">W</div><div class="key" data-k="e">E</div>
+    <div class="key" data-k="r">R</div><div class="key" data-k="t">T</div><div class="key" data-k="y">Y</div>
+    <div class="key" data-k="u">U</div><div class="key" data-k="i">I</div><div class="key" data-k="o">O</div>
+    <div class="key" data-k="p">P</div>
+  </div>
+  <div class="krow">
+    <div class="key" data-k="a">A</div><div class="key" data-k="s">S</div><div class="key" data-k="d">D</div>
+    <div class="key" data-k="f">F</div><div class="key" data-k="g">G</div><div class="key" data-k="h">H</div>
+    <div class="key" data-k="j">J</div><div class="key" data-k="k">K</div><div class="key" data-k="l">L</div>
+  </div>
+  <div class="krow">
+    <div class="key wide">⇧</div>
+    <div class="key" data-k="z">Z</div><div class="key" data-k="x">X</div><div class="key" data-k="c">C</div>
+    <div class="key" data-k="v">V</div><div class="key" data-k="b">B</div><div class="key" data-k="n">N</div>
+    <div class="key" data-k="m">M</div>
+    <div class="key wide">⌫</div>
+  </div>
+  <div class="krow"><div class="key sp">SPACE</div></div>
+</div>
+
+<!-- START SCREEN -->
+<div class="overlay" id="ss">
+  <div style="font-size:3.5rem">🐾</div>
+  <h2>どうぶつタイピング</h2>
+  <p>動物の絵を見ながら、ひらがなを<strong>ローマ字</strong>でタイピング！<br>
+  例：「いぬ」→ <strong>I・N・U</strong> と入力<br>
+  ブラインドタッチの練習にぴったり！</p>
+  <div class="msel">
+    <button class="mbtn sel" onclick="selMode(this,60)"><span class="mi">⏱</span>60秒</button>
+    <button class="mbtn" onclick="selMode(this,90)"><span class="mi">⏳</span>90秒</button>
+    <button class="mbtn" onclick="selMode(this,120)"><span class="mi">🕐</span>120秒</button>
+  </div>
+  <button class="bigbtn" onclick="startGame()">ゲームスタート！ 🎮</button>
+</div>
+
+<!-- RESULT SCREEN -->
+<div class="overlay hidden" id="rs">
+  <div class="remoji" id="re">🎉</div>
+  <h2 id="rt">おつかれさまでした！</h2>
+  <div class="rgrid">
+    <div class="rbox"><div class="num" id="rsc">0</div><div class="lbl">✅ 正解数</div></div>
+    <div class="rbox"><div class="num" id="rms">0</div><div class="lbl">💥 ミス数</div></div>
+    <div class="rbox"><div class="num" id="rac">0%</div><div class="lbl">🎯 精度</div></div>
+    <div class="rbox"><div class="num" id="rwpm">0</div><div class="lbl">⚡ 語/分</div></div>
+  </div>
+  <p id="rc"></p>
+  <button class="bigbtn" onclick="showStart()">もう一度チャレンジ！ 🔄</button>
+</div>
+
+<script>
+// ====== ROMAJI TABLE ======
+// Each hiragana → array of accepted romaji sequences
+const ROMA_MAP = {
+  'あ':['a'],'い':['i'],'う':['u'],'え':['e'],'お':['o'],
+  'か':['ka'],'き':['ki'],'く':['ku'],'け':['ke'],'こ':['ko'],
+  'さ':['sa'],'し':['si','shi'],'す':['su'],'せ':['se'],'そ':['so'],
+  'た':['ta'],'ち':['ti','chi'],'つ':['tu','tsu'],'て':['te'],'と':['to'],
+  'な':['na'],'に':['ni'],'ぬ':['nu'],'ね':['ne'],'の':['no'],
+  'は':['ha'],'ひ':['hi'],'ふ':['fu','hu'],'へ':['he'],'ほ':['ho'],
+  'ま':['ma'],'み':['mi'],'む':['mu'],'め':['me'],'も':['mo'],
+  'や':['ya'],'ゆ':['yu'],'よ':['yo'],
+  'ら':['ra'],'り':['ri'],'る':['ru'],'れ':['re'],'ろ':['ro'],
+  'わ':['wa'],'を':['wo'],'ん':['nn','n'],
+  'が':['ga'],'ぎ':['gi'],'ぐ':['gu'],'げ':['ge'],'ご':['go'],
+  'ざ':['za'],'じ':['zi','ji'],'ず':['zu'],'ぜ':['ze'],'ぞ':['zo'],
+  'だ':['da'],'ぢ':['di'],'づ':['du'],'で':['de'],'ど':['do'],
+  'ば':['ba'],'び':['bi'],'ぶ':['bu'],'べ':['be'],'ぼ':['bo'],
+  'ぱ':['pa'],'ぴ':['pi'],'ぷ':['pu'],'ぺ':['pe'],'ぽ':['po'],
+  'きゃ':['kya'],'きゅ':['kyu'],'きょ':['kyo'],
+  'しゃ':['sya','sha'],'しゅ':['syu','shu'],'しょ':['syo','sho'],
+  'ちゃ':['tya','cha'],'ちゅ':['tyu','chu'],'ちょ':['tyo','cho'],
+  'にゃ':['nya'],'にゅ':['nyu'],'にょ':['nyo'],
+  'ひゃ':['hya'],'ひゅ':['hyu'],'ひょ':['hyo'],
+  'みゃ':['mya'],'みゅ':['myu'],'みょ':['myo'],
+  'りゃ':['rya'],'りゅ':['ryu'],'りょ':['ryo'],
+  'ぎゃ':['gya'],'ぎゅ':['gyu'],'ぎょ':['gyo'],
+  'じゃ':['jya','ja','zya'],'じゅ':['jyu','ju','zyu'],'じょ':['jyo','jo','zyo'],
+  'びゃ':['bya'],'びゅ':['byu'],'びょ':['byo'],
+  'ぴゃ':['pya'],'ぴゅ':['pyu'],'ぴょ':['pyo'],
+  'っ':['ltu','xtu'], // handled specially below
+  'ー':['-'],
+};
+
+// Canonical display romaji (first option)
+function dispRoma(kana){ return (ROMA_MAP[kana]||[kana])[0].toUpperCase(); }
+
+// Parse hiragana string into mora array (handles compound kana + っ)
+function parseMora(str){
+  const result=[];
+  let i=0;
+  while(i<str.length){
+    // Try 2-char compound
+    if(i+1<str.length && ROMA_MAP[str[i]+str[i+1]]){
+      result.push(str[i]+str[i+1]);i+=2;
+    } else {
+      result.push(str[i]);i++;
+    }
+  }
+  return result;
+}
+
+// Get all accepted romaji for a mora, including っ doubling
+function getAccepted(mora, nextMora){
+  if(mora==='っ'){
+    // っ can be typed as the first consonant of the next mora doubled
+    const base = ROMA_MAP['っ'] ? [...ROMA_MAP['っ']] : [];
+    if(nextMora){
+      const nexts = ROMA_MAP[nextMora]||[];
+      nexts.forEach(r=>{ if(r[0]&&r[0]!=='a'&&r[0]!=='i'&&r[0]!=='u'&&r[0]!=='e'&&r[0]!=='o') base.push(r[0]); });
+    }
+    return base.length?base:['ltu'];
+  }
+  return ROMA_MAP[mora]||[mora];
+}
+
+// ====== ANIMAL DATA ======
+const ANIMALS=[
+  {e:'🐶',jp:'いぬ',r:'inu',h:'Dog / 犬'},
+  {e:'🐱',jp:'ねこ',r:'neko',h:'Cat / 猫'},
+  {e:'🐰',jp:'うさぎ',r:'usagi',h:'Rabbit / ウサギ'},
+  {e:'🐻',jp:'くま',r:'kuma',h:'Bear / クマ'},
+  {e:'🐼',jp:'ぱんだ',r:'panda',h:'Panda / パンダ'},
+  {e:'🐨',jp:'こあら',r:'koara',h:'Koala / コアラ'},
+  {e:'🐯',jp:'とら',r:'tora',h:'Tiger / トラ'},
+  {e:'🦁',jp:'らいおん',r:'raion',h:'Lion / ライオン'},
+  {e:'🐮',jp:'うし',r:'ushi',h:'Cow / 牛'},
+  {e:'🐷',jp:'ぶた',r:'buta',h:'Pig / ブタ'},
+  {e:'🐸',jp:'かえる',r:'kaeru',h:'Frog / カエル'},
+  {e:'🐵',jp:'さる',r:'saru',h:'Monkey / サル'},
+  {e:'🐔',jp:'にわとり',r:'niwatori',h:'Chicken / ニワトリ'},
+  {e:'🐧',jp:'ぺんぎん',r:'pengin',h:'Penguin / ペンギン'},
+  {e:'🐦',jp:'とり',r:'tori',h:'Bird / 鳥'},
+  {e:'🦆',jp:'あひる',r:'ahiru',h:'Duck / アヒル'},
+  {e:'🦅',jp:'わし',r:'washi',h:'Eagle / ワシ'},
+  {e:'🦉',jp:'ふくろう',r:'fukurou',h:'Owl / フクロウ'},
+  {e:'🦇',jp:'こうもり',r:'koumori',h:'Bat / コウモリ'},
+  {e:'🐺',jp:'おおかみ',r:'ookami',h:'Wolf / オオカミ'},
+  {e:'🦄',jp:'ゆにこーん',r:'yunikoon',h:'Unicorn / ユニコーン'},
+  {e:'🐝',jp:'みつばち',r:'mitsubachi',h:'Bee / ミツバチ'},
+  {e:'🦋',jp:'ちょうちょ',r:'chouchou',h:'Butterfly / チョウ'},
+  {e:'🐌',jp:'かたつむり',r:'katatsumuri',h:'Snail / カタツムリ'},
+  {e:'🐢',jp:'かめ',r:'kame',h:'Turtle / カメ'},
+  {e:'🐍',jp:'へび',r:'hebi',h:'Snake / ヘビ'},
+  {e:'🦖',jp:'きょうりゅう',r:'kyouryuu',h:'Dinosaur / 恐竜'},
+  {e:'🐊',jp:'わに',r:'wani',h:'Crocodile / ワニ'},
+  {e:'🐳',jp:'くじら',r:'kujira',h:'Whale / クジラ'},
+  {e:'🐬',jp:'いるか',r:'iruka',h:'Dolphin / イルカ'},
+  {e:'🐟',jp:'さかな',r:'sakana',h:'Fish / 魚'},
+  {e:'🦈',jp:'さめ',r:'same',h:'Shark / サメ'},
+  {e:'🐙',jp:'たこ',r:'tako',h:'Octopus / タコ'},
+  {e:'🦀',jp:'かに',r:'kani',h:'Crab / カニ'},
+  {e:'🦩',jp:'ふらみんご',r:'furamingo',h:'Flamingo / フラミンゴ'},
+  {e:'🦚',jp:'くじゃく',r:'kujyaku',h:'Peacock / クジャク'},
+  {e:'🦜',jp:'おうむ',r:'oumu',h:'Parrot / オウム'},
+  {e:'🦒',jp:'きりん',r:'kirin',h:'Giraffe / キリン'},
+  {e:'🦓',jp:'しまうま',r:'shimauma',h:'Zebra / シマウマ'},
+  {e:'🐘',jp:'ぞう',r:'zou',h:'Elephant / ゾウ'},
+  {e:'🦘',jp:'かんがるー',r:'kangaruu',h:'Kangaroo / カンガルー'},
+  {e:'🦌',jp:'しか',r:'shika',h:'Deer / 鹿'},
+  {e:'🐓',jp:'おんどり',r:'ondori',h:'Rooster / オンドリ'},
+  {e:'🦊',jp:'きつね',r:'kitsune',h:'Fox / キツネ'},
+  {e:'🐭',jp:'ねずみ',r:'nezumi',h:'Mouse / ネズミ'},
+  {e:'🐹',jp:'はむすたー',r:'hamusutaa',h:'Hamster / ハムスター'},
+  {e:'🐩',jp:'ぷーどる',r:'pudoru',h:'Poodle / プードル'},
+  {e:'🦭',jp:'あざらし',r:'azarashi',h:'Seal / アザラシ'},
+  {e:'🦑',jp:'いか',r:'ika',h:'Squid / イカ'},
+  {e:'🐡',jp:'ふぐ',r:'fugu',h:'Blowfish / フグ'},
+];
+
+// ====== AUDIO ======
+const ac=new (window.AudioContext||window.webkitAudioContext)();
+function tone(f,t,d,v=.28){
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.connect(g);g.connect(ac.destination);
+  o.type=t;o.frequency.setValueAtTime(f,ac.currentTime);
+  g.gain.setValueAtTime(v,ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);
+  o.start();o.stop(ac.currentTime+d);
+}
+function playOK(){tone(523,'sine',.1);setTimeout(()=>tone(659,'sine',.12),80);setTimeout(()=>tone(784,'sine',.18),160)}
+function playNG(){tone(180,'sawtooth',.18,.22)}
+function playTap(){tone(880,'sine',.04,.06)}
+function playDone(){[523,587,659,784,880].forEach((f,i)=>setTimeout(()=>tone(f,'sine',.22),i*80))}
+function playGo(){[440,554,659].forEach((f,i)=>setTimeout(()=>tone(f,'triangle',.25),i*100))}
+
+// ====== STATE ======
+let queue=[],cur=null,mora=[],moraIdx=0,romaTyped='',
+    score=0,miss=0,total=0,gtime=60,tleft=60,tiv=null,active=false,selT=60;
+let inputBuf=''; // typed romaji so far for current mora
+
+// ====== UTILS ======
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+// ====== RENDER KANA ROW ======
+function renderKana(){
+  const c=document.getElementById('kanarow');c.innerHTML='';
+  mora.forEach((m,i)=>{
+    const d=document.createElement('div');d.className='kchar';
+    if(i<moraIdx)d.classList.add('done');
+    else if(i===moraIdx)d.classList.add('cur');
+    d.innerHTML=`<span class="kana">${m}</span><span class="roma">${dispRoma(m)}</span>`;
+    c.appendChild(d);
+  });
+}
+
+// ====== RENDER ROMAJI PROGRESS for current mora ======
+function renderRomaProgress(){
+  const c=document.getElementById('romarow');c.innerHTML='';
+  if(moraIdx>=mora.length)return;
+  const m=mora[moraIdx];
+  const disp=dispRoma(m); // canonical romaji letters
+  for(let i=0;i<disp.length;i++){
+    const d=document.createElement('div');d.className='rlet';
+    d.textContent=disp[i];
+    if(i<inputBuf.length)d.classList.add('typed');
+    else if(i===inputBuf.length)d.classList.add('cur');
+    c.appendChild(d);
+  }
+}
+
+// ====== RENDER FAKE INPUT ======
+function renderFakeInput(){
+  const fi=document.getElementById('fake-input');
+  fi.innerHTML='';
+  // Show all typed romaji so far
+  const allTyped=romaTyped+(inputBuf||'');
+  for(let i=0;i<allTyped.length;i++){
+    const sp=document.createElement('span');
+    sp.className='fi-char ok';
+    sp.textContent=allTyped[i].toUpperCase();
+    fi.appendChild(sp);
+  }
+  const cur2=document.createElement('span');
+  cur2.className='fi-cursor';
+  fi.appendChild(cur2);
+}
+
+// ====== UPDATE NEXT WORDS ======
+function updNext(){
+  const b=document.getElementById('ni');b.innerHTML='';
+  for(let i=1;i<Math.min(4,queue.length);i++){
+    const s=document.createElement('span');s.className='nxtitem';
+    s.textContent=queue[i].e+' '+queue[i].jp;b.appendChild(s);
+  }
+}
+
+// ====== KEY HIGHLIGHT ======
+function hkey(k,cls='active'){
+  const el=document.querySelector(`[data-k="${k.toLowerCase()}"]`);
+  if(!el)return;el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),cls==='active'?150:300);
+}
+
+// ====== FEEDBACK ======
+function setFb(msg,cls){
+  const el=document.getElementById('fb');el.textContent=msg;el.className='fb '+cls;
+  if(msg)setTimeout(()=>{if(el.textContent===msg)el.textContent=''},1000);
+}
+
+// ====== STATS ======
+function updStats(){
+  document.getElementById('td').textContent=tleft;
+  document.getElementById('sd').textContent=score;
+  document.getElementById('md').textContent=miss;
+  const ok=total-miss;
+  document.getElementById('ad').textContent=total>0?Math.round(ok/total*100)+'%':'-';
+  document.getElementById('pb').style.width=(tleft/gtime*100)+'%';
+}
+
+// ====== LOAD ANIMAL ======
+function load(a){
+  cur=a;mora=parseMora(a.jp);moraIdx=0;inputBuf='';romaTyped='';
+  document.getElementById('aemoji').textContent=a.e;
+  document.getElementById('anjp').textContent=a.jp;
+  document.getElementById('ahint').textContent=a.h;
+  renderKana();renderRomaProgress();renderFakeInput();updNext();
+  const c=document.getElementById('acard');
+  c.classList.remove('bounce');void c.offsetWidth;c.classList.add('bounce');
+}
+
+function nextAnimal(){if(!queue.length)queue=shuffle(ANIMALS);load(queue[0])}
+
+// ====== MODE SELECT ======
+function selMode(btn,t){
+  document.querySelectorAll('.mbtn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');selT=t;
+}
+
+// ====== START ======
+function startGame(){
+  score=0;miss=0;total=0;gtime=selT;tleft=gtime;active=true;
+  queue=shuffle(ANIMALS);
+  document.getElementById('ss').classList.add('hidden');
+  document.getElementById('rs').classList.add('hidden');
+  document.getElementById('clickmsg').classList.add('hidden');
+  updStats();nextAnimal();
+  focusInput();playGo();
+  tiv=setInterval(()=>{tleft--;updStats();if(tleft<=0){clearInterval(tiv);endGame()}},1000);
+}
+
+// ====== END ======
+function endGame(){
+  active=false;playDone();
+  const ok=total-miss,acc=total>0?Math.round(ok/total*100):0,wpm=Math.round(score/(gtime/60));
+  document.getElementById('rsc').textContent=score;
+  document.getElementById('rms').textContent=miss;
+  document.getElementById('rac').textContent=acc+'%';
+  document.getElementById('rwpm').textContent=wpm;
+  let em='🎉',ti='おつかれさまでした！',cm='';
+  if(score>=25){em='🏆🌟🐾';ti='すごい！プロ級！';cm='ローマ字入力の達人です！完璧なブラインドタッチ！'}
+  else if(score>=16){em='🥇🎊';ti='とても上手！';cm='素晴らしいスピードと正確さ！'}
+  else if(score>=9){em='🥈😊';ti='よくできました！';cm='練習の成果が出ています！もう少しでプロ級！'}
+  else if(score>=4){em='🥉💪';ti='がんばりました！';cm='毎日練習でどんどん上手になります！'}
+  else{em='🌱🐾';ti='チャレンジ精神がすごい！';cm='ローマ字入力は練習あるのみ！また挑戦しよう！'}
+  document.getElementById('re').textContent=em;
+  document.getElementById('rt').textContent=ti;
+  document.getElementById('rc').textContent=cm;
+  document.getElementById('rs').classList.remove('hidden');
+}
+
+function showStart(){
+  clearInterval(tiv);active=false;
+  document.getElementById('rs').classList.add('hidden');
+  document.getElementById('ss').classList.remove('hidden');
+  document.getElementById('clickmsg').classList.remove('hidden');
+}
+
+// ====== FOCUS ======
+function focusInput(){
+  if(ac.state==='suspended')ac.resume();
+  const inp=document.getElementById('inp');
+  inp.focus();
+  document.getElementById('fake-input').classList.add('focused');
+}
+
+// ====== CORE KEY HANDLER ======
+// Process a single typed character (lowercase)
+function processChar(ch){
+  if(!active||moraIdx>=mora.length)return;
+  total++;
+  hkey(ch);
+
+  const curMora=mora[moraIdx];
+  const nextMora=mora[moraIdx+1]||null;
+  const accepted=getAccepted(curMora,nextMora);
+
+  // Build candidate: inputBuf + ch
+  const candidate=inputBuf+ch;
+
+  // Check against all accepted patterns
+  let matched=false, partial=false, anyMatch=false;
+  for(const pat of accepted){
+    if(candidate===pat){matched=true;anyMatch=true;break}
+    if(pat.startsWith(candidate)){partial=true;anyMatch=true}
+  }
+
+  if(matched){
+    // Mora complete!
+    inputBuf='';
+    romaTyped+=candidate;
+    moraIdx++;
+    playTap();
+    // Check word complete
+    if(moraIdx>=mora.length){
+      score++;playOK();
+      setFb('✅ せいかい！ '+cur.e,'ok');
+      const fi=document.getElementById('fake-input');
+      fi.classList.add('sf');setTimeout(()=>fi.classList.remove('sf'),400);
+      updStats();queue.shift();if(!queue.length)queue=shuffle(ANIMALS);
+      setTimeout(()=>load(queue[0]),250);
+    } else {
+      renderKana();renderRomaProgress();renderFakeInput();
+    }
+  } else if(partial){
+    // In progress
+    inputBuf=candidate;
+    renderFakeInput();
+    renderRomaProgress();
+  } else {
+    // Wrong
+    miss++;playNG();setFb('❌ まちがい！','ng');
+    inputBuf=''; // reset buffer for current mora
+    renderFakeInput();renderRomaProgress();
+  }
+  updStats();
+}
+
+// ====== INPUT EVENTS ======
+const inpEl=document.getElementById('inp');
+
+inpEl.addEventListener('keydown',function(e){
+  if(!active)return;
+  if(e.key==='Backspace'){e.preventDefault();return}
+  if(e.key.length===1 && !e.ctrlKey && !e.metaKey){
+    e.preventDefault();
+    processChar(e.key.toLowerCase());
+  }
+});
+
+// For mobile: use input event, read last char
+inpEl.addEventListener('input',function(e){
+  if(!active)return;
+  const val=this.value;
+  if(val.length>0){
+    const ch=val[val.length-1].toLowerCase();
+    this.value='';
+    if(ch.match(/[a-z]/))processChar(ch);
+  }
+});
+
+inpEl.addEventListener('focus',()=>document.getElementById('fake-input').classList.add('focused'));
+inpEl.addEventListener('blur',()=>document.getElementById('fake-input').classList.remove('focused'));
+document.getElementById('fake-input').addEventListener('click',focusInput);
+document.addEventListener('keydown',e=>{
+  if(active && e.key.length===1 && !e.ctrlKey && !e.metaKey){
+    if(document.activeElement!==inpEl)focusInput();
+  }
+});
+document.addEventListener('click',()=>{if(ac.state==='suspended')ac.resume()});
+
+// ====== INIT ======
+updStats();
+// Show sample
+(function(){
+  const m=parseMora('いぬ');
+  document.getElementById('kanarow').innerHTML=m.map((ch,i)=>{
+    const cls=i===0?'kchar cur':'kchar';
+    return `<div class="${cls}"><span class="kana">${ch}</span><span class="roma">${dispRoma(ch)}</span></div>`;
+  }).join('');
+})();
+</script>
+</body>
+</html>
