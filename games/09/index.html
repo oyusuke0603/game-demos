@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ババ抜き</title>
+<style>
+:root {
+  --gold: #c8a84b;
+  --gold-light: #e8c86a;
+  --card-w: clamp(42px, 6.5vw, 70px);
+  --card-h: clamp(63px, 9.8vw, 105px);
+  --card-r: 5px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #0a2e15;
+  font-family: 'Georgia', serif;
+  color: #f0e6c8;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#app { width: 100%; height: 100%; display: flex; flex-direction: column; }
+
+/* ── SCREENS ── */
+.screen { display: none; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; }
+.screen.active { display: flex; }
+
+/* ── TITLE ── */
+#title-screen { background: radial-gradient(ellipse at center, #1e6b38 0%, #0a2e15 100%); position: relative; }
+.suits-deco { font-size: clamp(1.4rem, 4.5vw, 2.2rem); letter-spacing: .4em; margin-bottom: 1.2em; opacity: .7; }
+.title-logo { font-size: clamp(2rem, 8vw, 4rem); font-weight: bold; letter-spacing: .15em; color: var(--gold); text-shadow: 0 2px 8px rgba(0,0,0,.6); margin-bottom: .15em; }
+.title-sub { font-size: clamp(.8rem, 3vw, 1.1rem); color: rgba(240,230,200,.65); letter-spacing: .3em; margin-bottom: 2em; }
+.diff-section { margin-bottom: 1.6em; text-align: center; }
+.diff-label { font-size: .85rem; color: rgba(240,230,200,.65); margin-bottom: .7em; letter-spacing: .2em; }
+.diff-btns { display: flex; gap: .7em; justify-content: center; flex-wrap: wrap; }
+.diff-btn {
+  background: transparent; color: var(--gold-light);
+  border: 1.5px solid rgba(200,168,75,.4); border-radius: 999px;
+  padding: .45em 1.3em; font-size: .82rem; font-family: 'Georgia', serif;
+  cursor: pointer; transition: all .15s;
+}
+.diff-btn.active, .diff-btn:hover { background: rgba(200,168,75,.18); border-color: var(--gold); color: var(--gold); }
+.menu-btn {
+  background: linear-gradient(135deg, var(--gold) 0%, #a07830 100%);
+  color: #1a0e00; border: none; border-radius: 999px;
+  padding: .75em 2.4em; font-size: clamp(.85rem, 2.8vw, 1.1rem);
+  font-family: 'Georgia', serif; font-weight: bold; cursor: pointer;
+  letter-spacing: .08em; box-shadow: 0 4px 18px rgba(200,168,75,.35);
+  transition: transform .1s, box-shadow .1s; margin: .35em; min-width: 190px;
+}
+.menu-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(200,168,75,.5); }
+.menu-btn:active { transform: translateY(0); }
+.menu-btn.sec { background: transparent; color: var(--gold); border: 1.5px solid var(--gold); box-shadow: none; }
+#sound-btn {
+  position: absolute; top: 14px; right: 14px;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+  border-radius: 50%; width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 1.1rem;
+}
+
+/* ── GAME SCREEN ── */
+#game-screen {
+  background: radial-gradient(ellipse at center, #1e6b38 0%, #0a2e15 100%);
+  flex-direction: column;
+}
+
+/* Status bar */
+#status-bar {
+  width: 100%; flex-shrink: 0;
+  background: rgba(0,0,0,.45);
+  border-bottom: 1px solid rgba(200,168,75,.3);
+  padding: 5px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 42px;
+}
+#turn-lbl { font-size: clamp(.72rem, 2.2vw, .9rem); color: var(--gold-light); }
+#home-btn {
+  background: none; border: 1px solid rgba(240,230,200,.3);
+  color: rgba(240,230,200,.65); border-radius: 5px;
+  padding: 3px 11px; font-size: .78rem; cursor: pointer; font-family: 'Georgia', serif;
+}
+#home-btn:hover { background: rgba(240,230,200,.1); color: #f0e6c8; }
+
+/*
+  ┌─────────────────────────────┐
+  │         AI 2  (top)         │  row 1
+  ├──────────────┬──────────────┤
+  │   AI 1(left) │  message     │  row 2  (middle)
+  ├──────────────┴──────────────┤
+  │       Player  (bottom)      │  row 3
+  └─────────────────────────────┘
+*/
+#game-area {
+  flex: 1;
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  grid-template-columns: 1fr;
+  padding: 6px 8px;
+  gap: 4px;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* row 1: AI2 */
+#ai2-row {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  padding-top: 4px; gap: 2px;
+  min-height: 0;
+}
+/* row 2: middle */
+#mid-row {
+  display: flex; align-items: center;
+  gap: 8px; min-height: 0;
+}
+#ai1-col {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+}
+#msg-col {
+  flex: 0 0 auto; max-width: 44%;
+  text-align: center;
+}
+#msg-box {
+  display: inline-block;
+  background: rgba(0,0,0,.55);
+  border: 1px solid rgba(200,168,75,.45);
+  border-radius: 8px; padding: 6px 12px;
+  font-size: clamp(.65rem, 2vw, .88rem);
+  color: var(--gold-light); line-height: 1.35;
+  word-break: keep-all;
+}
+/* row 3: Player */
+#player-row {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end;
+  padding-bottom: 4px; gap: 2px;
+  min-height: 0;
+}
+
+/* Hand containers */
+.plabel { font-size: clamp(.62rem, 1.8vw, .82rem); color: rgba(240,230,200,.8); letter-spacing: .08em; }
+.elim-tag { font-size: clamp(.58rem, 1.6vw, .72rem); color: rgba(240,230,200,.45); font-style: italic; }
+
+.hand-wrap {
+  position: relative; width: 100%;
+  min-height: calc(var(--card-h) + 14px);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+/* ai2 cards fan up from top */
+#ai2-row .hand-wrap { align-items: flex-start; }
+/* ai1 slightly shorter space */
+#ai1-col .hand-wrap { min-height: calc(var(--card-h) + 6px); }
+
+/* ── CARDS ── */
+.card {
+  position: absolute;
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: var(--card-r);
+  transition: transform .16s ease, box-shadow .16s ease;
+  transform-origin: bottom center;
+}
+.card.back {
+  background: linear-gradient(140deg, #1a237e 0%, #283593 55%, #1a237e 100%);
+  border: 2px solid rgba(255,255,255,.18);
+  box-shadow: 0 2px 7px rgba(0,0,0,.55);
+}
+.card.back::after {
+  content: ''; position: absolute; inset: 4px;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 3px;
+  background: repeating-linear-gradient(45deg,
+    rgba(255,255,255,.04) 0,rgba(255,255,255,.04) 3px,
+    transparent 3px, transparent 7px);
+}
+.card.face {
+  background: #fff; border: 2px solid #ccc;
+  box-shadow: 0 2px 7px rgba(0,0,0,.4);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  font-weight: bold; line-height: 1;
+  font-size: clamp(.6rem, 1.8vw, .95rem);
+}
+.card.red  { color: #c0392b; }
+.card.blk  { color: #111; }
+.card .rnk { font-size: 1.25em; }
+.card .sut { font-size: 1.35em; }
+
+/* Drawable = player can click this to draw */
+.card.drawable {
+  cursor: pointer !important;
+  animation: glow 1s ease-in-out infinite alternate;
+}
+.card.drawable:hover {
+  transform: translateY(-14px) scale(1.05) !important;
+  box-shadow: 0 10px 28px rgba(200,168,75,.85) !important;
+  z-index: 100 !important;
+}
+@keyframes glow {
+  from { box-shadow: 0 2px 7px rgba(0,0,0,.55); }
+  to   { box-shadow: 0 4px 20px rgba(200,168,75,.7); }
+}
+
+/* ── RESULT ── */
+#result-screen { background: radial-gradient(ellipse at center, #1e6b38 0%, #0a2e15 100%); }
+.r-title { font-size: clamp(2rem, 8vw, 3.5rem); font-weight: bold; margin-bottom: .3em; }
+.r-title.win  { color: var(--gold); text-shadow: 0 0 28px rgba(200,168,75,.65); }
+.r-title.lose { color: #e74c3c;    text-shadow: 0 0 28px rgba(231,76,60,.6); }
+.r-sub { font-size: clamp(.85rem, 2.8vw, 1.15rem); color: rgba(240,230,200,.7); margin-bottom: 1.8em; }
+.r-stats {
+  background: rgba(0,0,0,.3); border: 1px solid rgba(200,168,75,.3);
+  border-radius: 10px; padding: 1em 1.8em; margin-bottom: 1.8em; min-width: 220px; text-align: left;
+}
+.srow { display: flex; justify-content: space-between; gap: 1.8em; padding: .28em 0; font-size: .92rem; }
+.slbl { color: rgba(240,230,200,.55); }
+.sval { color: var(--gold-light); font-weight: bold; }
+
+/* ── NOTIFICATION ── */
+.notif {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  background: rgba(0,0,0,.88); border: 1.5px solid var(--gold);
+  border-radius: 10px; padding: .7em 1.8em;
+  font-size: clamp(.95rem, 3.5vw, 1.3rem); color: var(--gold);
+  pointer-events: none; z-index: 999;
+  animation: notifAnim 1.8s forwards;
+  white-space: nowrap;
+}
+@keyframes notifAnim {
+  0%   { opacity:0; transform:translate(-50%,-58%) scale(.82); }
+  18%  { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  72%  { opacity:1; }
+  100% { opacity:0; transform:translate(-50%,-42%); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ═══ TITLE ═══ -->
+<div id="title-screen" class="screen active">
+  <button id="sound-btn">🔊</button>
+  <div class="suits-deco">♠ ♥ ♦ ♣</div>
+  <div class="title-logo">ババ抜き</div>
+  <div class="title-sub">OLD MAID</div>
+  <div class="diff-section">
+    <div class="diff-label">難　易　度</div>
+    <div class="diff-btns">
+      <button class="diff-btn" data-d="easy">かんたん</button>
+      <button class="diff-btn active" data-d="normal">ふつう</button>
+      <button class="diff-btn" data-d="hard">むずかしい</button>
+    </div>
+  </div>
+  <button class="menu-btn" id="start-btn">ゲームスタート</button>
+  <button class="menu-btn sec" id="rules-btn">遊び方</button>
+</div>
+
+<!-- ═══ GAME ═══ -->
+<div id="game-screen" class="screen">
+  <div id="status-bar">
+    <span id="turn-lbl">準備中…</span>
+    <button id="home-btn">ホーム</button>
+  </div>
+  <div id="game-area">
+
+    <!-- ROW 1: AI 2 (top) -->
+    <div id="ai2-row">
+      <div class="plabel" id="lbl-ai2">AI 2</div>
+      <div class="hand-wrap" id="hand-ai2"></div>
+      <div class="elim-tag" id="elim-ai2" style="display:none">あがり！</div>
+    </div>
+
+    <!-- ROW 2: AI 1 (left) + Message (right) -->
+    <div id="mid-row">
+      <div id="ai1-col">
+        <div class="plabel" id="lbl-ai1">AI 1</div>
+        <div class="hand-wrap" id="hand-ai1"></div>
+        <div class="elim-tag" id="elim-ai1" style="display:none">あがり！</div>
+      </div>
+      <div id="msg-col">
+        <div id="msg-box">配り中…</div>
+      </div>
+    </div>
+
+    <!-- ROW 3: Player (bottom) -->
+    <div id="player-row">
+      <div class="plabel">あなた</div>
+      <div class="hand-wrap" id="hand-player"></div>
+      <div id="pcnt" style="font-size:.72rem;color:rgba(240,230,200,.55)"></div>
+      <div class="elim-tag" id="elim-player" style="display:none">あがり！</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ RESULT ═══ -->
+<div id="result-screen" class="screen">
+  <div class="suits-deco">♠ ♥ ♦ ♣</div>
+  <div class="r-title" id="r-title">あがり！</div>
+  <div class="r-sub"   id="r-sub">おめでとう</div>
+  <div class="r-stats">
+    <div class="srow"><span class="slbl">難易度</span><span class="sval" id="r-diff">-</span></div>
+    <div class="srow"><span class="slbl">ターン数</span><span class="sval" id="r-turns">-</span></div>
+    <div class="srow"><span class="slbl">結果</span><span class="sval" id="r-res">-</span></div>
+  </div>
+  <button class="menu-btn" id="retry-btn">もう一度</button>
+  <button class="menu-btn sec" id="title-btn">タイトルへ</button>
+</div>
+
+</div><!-- /app -->
+
+<script>
+/* ════════════════════════════════════════
+   AUDIO
+════════════════════════════════════════ */
+const SFX = (() => {
+  let ctx = null, on = true;
+  const init = () => {
+    if (!ctx) try { ctx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){}
+    if (ctx?.state === 'suspended') ctx.resume();
+  };
+  const t = (f,d,v=.22,tp='sine',dl=0) => {
+    if (!on||!ctx) return;
+    const now = ctx.currentTime+dl;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type=tp; o.frequency.setValueAtTime(f,now);
+    g.gain.setValueAtTime(0,now);
+    g.gain.linearRampToValueAtTime(v,now+.01);
+    g.gain.exponentialRampToValueAtTime(.001,now+d);
+    o.start(now); o.stop(now+d+.05);
+  };
+  return {
+    card:   ()=>{ init(); t(820,.07,.16,'triangle'); },
+    draw:   ()=>{ init(); t(520,.1,.14,'sine'); },
+    match:  ()=>{ init(); [523,659,784,1046].forEach((f,i)=>t(f,.14,.2,'sine',i*.08)); },
+    joker:  ()=>{ init(); t(310,.28,.28,'sawtooth'); t(210,.28,.28,'sawtooth',.18); },
+    elim:   ()=>{ init(); [800,650,500].forEach((f,i)=>t(f,.14,.2,'sine',i*.1)); },
+    win:    ()=>{ init(); [523,659,784,1046,1318].forEach((f,i)=>t(f,.18,.26,'sine',i*.1)); },
+    lose:   ()=>{ init(); [400,340,280,230].forEach((f,i)=>t(f,.22,.26,'sawtooth',i*.12)); },
+    toggle: ()=>{ on=!on; return on; },
+    isOn:   ()=>on,
+  };
+})();
+
+/* ════════════════════════════════════════
+   DECK
+════════════════════════════════════════ */
+const SUITS = ['♠','♥','♦','♣'];
+const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const IS_RED = new Set(['♥','♦']);
+let _uid = 0;
+
+function buildDeck() {
+  const d = [];
+  for (const s of SUITS)
+    for (const r of RANKS)
+      d.push({ id:_uid++, suit:s, rank:r, red:IS_RED.has(s), joker:false });
+  d.push({ id:_uid++, suit:'🃏', rank:'JOKER', red:false, joker:true });
+  return d;
+}
+function shuffle(a) {
+  const b=[...a];
+  for (let i=b.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [b[i],b[j]]=[b[j],b[i]]; }
+  return b;
+}
+function removePairs(h) {
+  let arr=[...h], changed=true;
+  while(changed){
+    changed=false;
+    outer: for(let i=0;i<arr.length;i++)
+      for(let j=i+1;j<arr.length;j++)
+        if(!arr[i].joker&&!arr[j].joker&&arr[i].rank===arr[j].rank){
+          arr.splice(j,1);arr.splice(i,1);changed=true;break outer;
+        }
+  }
+  return arr;
+}
+
+/* ════════════════════════════════════════
+   STATE
+   hands[0]=player, hands[1]=ai1, hands[2]=ai2
+   turn order: 0→1→2→0→...
+════════════════════════════════════════ */
+let G = {
+  hands:[[[],[],[]]],
+  elim:[false,false,false],
+  turn:0, phase:'idle', diff:'normal', turns:0
+};
+
+/* ════════════════════════════════════════
+   DOM HELPERS
+════════════════════════════════════════ */
+const $  = id => document.getElementById(id);
+const ss = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $(id).classList.add('active'); };
+const setMsg  = t => $('msg-box').textContent = t;
+const setTurn = t => $('turn-lbl').textContent = t;
+
+function notify(msg, dur=1800) {
+  const el = document.createElement('div');
+  el.className='notif'; el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), dur+100);
+}
+
+/* ── Make a card element ── */
+function makeCard(card, faceUp) {
+  const el = document.createElement('div');
+  if (faceUp) {
+    el.className = 'card face' + (card.red?' red':' blk');
+    el.innerHTML = card.joker
+      ? `<div class="rnk">🃏</div><div class="sut" style="font-size:.8em">JOKER</div>`
+      : `<div class="rnk">${card.rank}</div><div class="sut">${card.suit}</div>`;
+  } else {
+    el.className = 'card back';
+  }
+  return el;
+}
+
+/* ── Fan layout ──
+   containerId : element ID of .hand-wrap
+   cards       : array of card objects
+   faceUp      : bool
+   onDraw      : if set, each card gets .drawable + click→onDraw(index)
+   fanUp       : true = fan opens upward (ai2), false = downward (ai1 left)
+*/
+function layoutFan(containerId, cards, faceUp, onDraw, fanUp=false) {
+  const wrap = $(containerId);
+  wrap.innerHTML = '';
+  const n = cards.length;
+  if (!n) return;
+
+  const wrapW = wrap.getBoundingClientRect().width || wrap.offsetWidth || 200;
+  const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 56;
+  const cardH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-h')) || 84;
+
+  // spacing: fit all cards within wrapW with min overlap
+  const maxSpacing = cardW * 0.82;
+  const fitSpacing = n > 1 ? Math.min(maxSpacing, (wrapW * 0.88 - cardW) / (n - 1)) : 0;
+  const spacing = Math.max(14, fitSpacing);
+  const totalW = (n - 1) * spacing + cardW;
+  const startX = Math.max(0, (wrapW - totalW) / 2);
+
+  const maxAngle = Math.min(5, 28 / Math.max(n, 1));
+
+  cards.forEach((card, i) => {
+    const el = makeCard(card, faceUp);
+    const t = n > 1 ? (i - (n-1)/2) / Math.max((n-1)/2, 1) : 0; // -1..1
+    const angle = t * maxAngle;
+    const lift  = n > 1 ? (1 - Math.abs(t)) * 0 : 0; // flat lift
+
+    el.style.left    = (startX + i * spacing) + 'px';
+    el.style.bottom  = lift + 'px';
+    el.style.transform = `rotate(${angle}deg)`;
+    el.style.zIndex  = i + 1;
+
+    if (onDraw) {
+      el.classList.add('drawable');
+      const idx = i;
+      el.addEventListener('click', () => {
+        if (G.phase === 'player-draw') onDraw(idx);
+      });
+    }
+    wrap.appendChild(el);
+  });
+}
+
+/* ── Full render ──
+   drawFrom: 1 or 2 (ai index whose cards glow & are clickable), or null
+*/
+function render(drawFrom) {
+  // AI 2 (top row)
+  if (G.elim[2] || G.hands[2].length === 0) {
+    $('hand-ai2').innerHTML = '';
+    $('elim-ai2').style.display = 'block';
+    $('lbl-ai2').textContent = 'AI 2 ✓';
+  } else {
+    $('elim-ai2').style.display = 'none';
+    $('lbl-ai2').textContent = 'AI 2';
+    layoutFan('hand-ai2', G.hands[2], false,
+      drawFrom === 2 ? idx => onPlayerDraw(2, idx) : null, true);
+  }
+
+  // AI 1 (middle-left col)
+  if (G.elim[1] || G.hands[1].length === 0) {
+    $('hand-ai1').innerHTML = '';
+    $('elim-ai1').style.display = 'block';
+    $('lbl-ai1').textContent = 'AI 1 ✓';
+  } else {
+    $('elim-ai1').style.display = 'none';
+    $('lbl-ai1').textContent = 'AI 1';
+    layoutFan('hand-ai1', G.hands[1], false,
+      drawFrom === 1 ? idx => onPlayerDraw(1, idx) : null, false);
+  }
+
+  // Player (bottom)
+  layoutFan('hand-player', G.hands[0], true, null, false);
+  $('pcnt').textContent = G.hands[0].length ? `手札: ${G.hands[0].length}枚` : '';
+  $('elim-player').style.display = (G.elim[0] || G.hands[0].length === 0) ? 'block' : 'none';
+}
+
+/* ════════════════════════════════════════
+   GAME FLOW
+════════════════════════════════════════ */
+const DIFF = {
+  easy:   { think:900,  delay:1300, pick: n => Math.floor(Math.random()*n) },
+  normal: { think:600,  delay:1000, pick: n => Math.floor(Math.random()*n) },
+  hard:   { think:400,  delay:750,
+    pick: n => {
+      // smart: prefer middle, avoid known-edge joker positions
+      const c = Math.floor(n/2);
+      const r = Math.max(1, Math.floor(n*.28));
+      return Math.min(n-1, Math.max(0, c + Math.round((Math.random()*2-1)*r)));
+    }
+  },
+};
+
+function alive() { return [0,1,2].filter(p => !G.elim[p] && G.hands[p].length > 0); }
+
+/* next alive player after `from` in turn order */
+function nextFrom(from) {
+  for (let i=1; i<=3; i++) {
+    const p = (from+i)%3;
+    if (!G.elim[p] && G.hands[p].length > 0) return p;
+  }
+  return -1;
+}
+
+function checkElim() {
+  [0,1,2].forEach(p => {
+    if (!G.elim[p] && G.hands[p].length === 0) {
+      G.elim[p] = true;
+      SFX.elim();
+      notify(p === 0 ? 'あがり！ 🎉' : `AI ${p} があがりました！`);
+    }
+  });
+}
+
+function startGame(diff) {
+  G.diff  = diff;
+  G.turns = 0;
+  G.phase = 'idle';
+  G.elim  = [false,false,false];
+  G.turn  = 0;
+
+  const deck = shuffle(buildDeck());
+  G.hands = [[],[],[]];
+  deck.forEach((c,i) => G.hands[i%3].push(c));
+  G.hands = G.hands.map(removePairs);
+
+  ss('game-screen');
+  render(null);
+  setTimeout(nextTurnStart, 400);
+}
+
+function nextTurnStart() {
+  checkElim();
+  const a = alive();
+  if (a.length <= 1) { setTimeout(endGame, 500); return; }
+
+  // Advance turn pointer past eliminated/empty players
+  let safety = 0;
+  while ((G.elim[G.turn] || G.hands[G.turn].length === 0) && safety++ < 6)
+    G.turn = (G.turn+1)%3;
+
+  G.turns++;
+
+  if (G.turn === 0) doPlayerTurn();
+  else              doAiTurn(G.turn);
+}
+
+/* ── PLAYER TURN ── */
+function doPlayerTurn() {
+  const from = nextFrom(0);   // which AI the player draws from
+  if (from === -1) { endGame(); return; }
+
+  G.phase = 'player-draw';
+  setTurn('あなたのターン');
+  const aiName = `AI ${from}`;
+  setMsg(`${aiName} のカードを1枚クリックして引いてください`);
+  render(from);   // <-- makes that AI's cards glow & clickable
+}
+
+function onPlayerDraw(fromAi, idx) {
+  if (G.phase !== 'player-draw') return;
+  G.phase = 'idle';
+  SFX.draw();
+
+  const drawn = G.hands[fromAi].splice(idx, 1)[0];
+  G.hands[0].push(drawn);
+
+  if (drawn.joker) { notify('ジョーカーを引いた！ 😱'); SFX.joker(); }
+  else             { notify(`${drawn.rank}${drawn.suit} を引いた！`); }
+
+  render(null);
+
+  setTimeout(() => {
+    const before = G.hands[0].length;
+    G.hands[0] = removePairs(G.hands[0]);
+    if (G.hands[0].length < before) { SFX.match(); notify('ペアを捨てた！'); render(null); }
+    setTimeout(() => { G.turn = (G.turn+1)%3; nextTurnStart(); }, 650);
+  }, 480);
+}
+
+/* ── AI TURN ── */
+function doAiTurn(pi) {
+  const cfg  = DIFF[G.diff];
+  const from = nextFrom(pi);
+  if (from === -1 || !G.hands[from].length) {
+    G.turn = (G.turn+1)%3; setTimeout(nextTurnStart, 200); return;
+  }
+
+  const name = `AI ${pi}`;
+  setTurn(`${name} のターン`);
+  setMsg(`${name} が考えています…`);
+  render(null);
+
+  setTimeout(() => {
+    const idx = cfg.pick(G.hands[from].length);
+    const drawn = G.hands[from].splice(idx, 1)[0];
+    G.hands[pi].push(drawn);
+    SFX.draw();
+
+    if (drawn.joker) notify(`${name} がジョーカーを引いた！ 😱`);
+    setMsg(`${name} がカードを引いた`);
+    render(null);
+
+    setTimeout(() => {
+      const before = G.hands[pi].length;
+      G.hands[pi] = removePairs(G.hands[pi]);
+      if (G.hands[pi].length < before) SFX.match();
+      render(null);
+      setTimeout(() => { G.turn = (G.turn+1)%3; nextTurnStart(); }, cfg.delay * .45);
+    }, cfg.delay * .45);
+  }, cfg.think);
+}
+
+/* ── END GAME ── */
+function endGame() {
+  G.phase = 'game-over';
+  let loser = -1;
+  [0,1,2].forEach(p => { if (G.hands[p].some(c=>c.joker)) loser=p; });
+
+  const playerLost = loser === 0;
+  const rt = $('r-title');
+  rt.textContent = playerLost ? 'ババ！' : 'あがり！';
+  rt.className   = 'r-title ' + (playerLost ? 'lose' : 'win');
+  $('r-sub').textContent  = playerLost ? '惜しかった！また挑戦しよう' : 'おめでとうございます！🎉';
+  const dn = { easy:'かんたん', normal:'ふつう', hard:'むずかしい' };
+  $('r-diff').textContent  = dn[G.diff];
+  $('r-turns').textContent = G.turns + ' ターン';
+  $('r-res').textContent   = playerLost ? 'AIの勝ち' : 'あなたの勝ち';
+
+  if (playerLost) SFX.lose(); else SFX.win();
+  setTimeout(() => ss('result-screen'), 1300);
+}
+
+/* ════════════════════════════════════════
+   UI EVENTS
+════════════════════════════════════════ */
+let selDiff = 'normal';
+document.querySelectorAll('.diff-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    selDiff = b.dataset.d;
+  });
+});
+
+$('start-btn').addEventListener('click', () => { SFX.card(); startGame(selDiff); });
+$('rules-btn').addEventListener('click', () => alert(
+  '【ババ抜きのルール】\n\n' +
+  '1. カードを3人に配り、最初にペア（同数字）を捨てます\n' +
+  '2. あなたのターン：光っているAIのカードを1枚クリック\n' +
+  '3. 引いたカードでペアになったら自動で捨てます\n' +
+  '4. 手札がなくなった人から「あがり」\n' +
+  '5. 最後にジョーカーを持っていた人の負け！\n\n' +
+  '　♠ AI 1 ＝ 画面左側  ♠\n' +
+  '　♥ AI 2 ＝ 画面上部  ♥'
+));
+$('sound-btn').addEventListener('click', () => {
+  const on = SFX.toggle();
+  $('sound-btn').textContent = on ? '🔊' : '🔇';
+});
+$('home-btn').addEventListener('click',  () => { G.phase='idle'; ss('title-screen'); });
+$('retry-btn').addEventListener('click', () => { SFX.card(); startGame(G.diff); });
+$('title-btn').addEventListener('click', () => ss('title-screen'));
+
+// Re-render on resize (card fan recalculates widths)
+let _rt;
+window.addEventListener('resize', () => {
+  clearTimeout(_rt);
+  _rt = setTimeout(() => {
+    if ($('game-screen').classList.contains('active')) render(null);
+  }, 160);
+});
+</script>
+</body>
+</html>
