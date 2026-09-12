@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リバーシゲーム</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Georgia', serif;
+    background: #1a1a1a;
+    color: #f0f0f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+  }
+  h1 {
+    font-size: clamp(20px, 4vw, 28px);
+    letter-spacing: 6px;
+    color: #e8e0c8;
+    text-align: center;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .subtitle { font-size: 11px; letter-spacing: 3px; color: #888; margin-bottom: 16px; }
+  .main { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; align-items: flex-start; width: 100%; max-width: 900px; }
+  .panel {
+    background: #242424;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 16px;
+    min-width: 200px;
+    flex: 1 1 180px;
+    max-width: 240px;
+  }
+  .panel-title { font-size: 10px; letter-spacing: 3px; color: #666; text-transform: uppercase; margin-bottom: 12px; }
+  .score-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .disc-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; flex-shrink: 0;
+  }
+  .disc-black { background: #111; border-color: #555; }
+  .disc-white { background: #f5f5f5; border-color: #ccc; }
+  .score-label { font-size: 11px; color: #999; flex: 1; }
+  .score-num { font-size: 22px; font-weight: bold; color: #e8e0c8; min-width: 32px; text-align: right; }
+  .score-you { color: #4a9eff; }
+  .score-ai { color: #ff6b6b; }
+  .btn {
+    width: 100%; padding: 8px 12px; margin-bottom: 8px;
+    background: transparent; border: 1px solid #444;
+    border-radius: 8px; color: #e8e0c8;
+    font-size: 12px; letter-spacing: 1px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn:hover { border-color: #888; background: #2e2e2e; }
+  .btn.active { border-color: #4a9eff; color: #4a9eff; background: rgba(74,158,255,0.1); }
+  .btn-new {
+    background: #2c3e2c; border-color: #4a7a4a; color: #8fcc8f;
+  }
+  .btn-new:hover { background: #3a4e3a; }
+  .difficulty-group { display: flex; flex-direction: column; gap: 6px; }
+  .status-box {
+    background: #1a1a1a; border-radius: 8px; padding: 12px;
+    font-size: 12px; text-align: center; color: #aaa;
+    min-height: 44px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid #2a2a2a; margin-bottom: 8px;
+  }
+  .status-box.player-turn { color: #4a9eff; }
+  .status-box.ai-turn { color: #ff6b6b; }
+  .status-box.game-over { color: #ffd700; font-weight: bold; }
+  .board-wrap { position: relative; flex-shrink: 0; }
+  .board-outer {
+    background: #1a3320;
+    border: 3px solid #2a5035;
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 0 30px rgba(0,80,30,0.4), inset 0 0 20px rgba(0,0,0,0.3);
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 2px;
+    background: #1a3320;
+  }
+  .cell {
+    width: var(--cell, clamp(36px, 8vw, 62px));
+    height: var(--cell, clamp(36px, 8vw, 62px));
+    background: #1e4028;
+    border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.15s;
+  }
+  .cell:hover.valid { background: #2a5535; }
+  .cell.valid::after {
+    content: '';
+    width: 30%; height: 30%;
+    background: rgba(100,200,100,0.35);
+    border-radius: 50%;
+    position: absolute;
+  }
+  .disc {
+    width: 78%; height: 78%;
+    border-radius: 50%;
+    position: absolute;
+    transition: transform 0.15s;
+  }
+  .disc.black { background: radial-gradient(circle at 35% 30%, #4a4a4a, #111); border: 1.5px solid #555; }
+  .disc.white { background: radial-gradient(circle at 35% 30%, #ffffff, #cccccc); border: 1.5px solid #aaa; }
+  .disc.flip { animation: flipDisc 0.3s ease-in-out; }
+  @keyframes flipDisc {
+    0% { transform: scaleX(1); }
+    50% { transform: scaleX(0); }
+    100% { transform: scaleX(1); }
+  }
+  .disc.place { animation: placeDisc 0.2s ease-out; }
+  @keyframes placeDisc {
+    0% { transform: scale(0.3); opacity:0.5; }
+    100% { transform: scale(1); opacity:1; }
+  }
+  .coords-top { display: flex; gap: 2px; padding-left: 8px; margin-bottom: 3px; }
+  .coords-side { display: flex; flex-direction: column; gap: 2px; margin-right: 3px; }
+  .coord-label { font-size: 9px; color: #3a5a3a; letter-spacing: 0; display: flex; align-items: center; justify-content: center; }
+  .coord-col { width: var(--cell, clamp(36px, 8vw, 62px)); }
+  .coord-row { height: var(--cell, clamp(36px, 8vw, 62px)); width: 12px; }
+  .board-container { display: flex; }
+  .sound-toggle { font-size: 18px; cursor: pointer; background: none; border: none; color: #888; padding: 4px 8px; }
+  .sound-toggle:hover { color: #ccc; }
+  .header-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .pass-notice {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: rgba(0,0,0,0.85); color: #ffd700;
+    padding: 12px 24px; border-radius: 10px;
+    font-size: 14px; letter-spacing: 2px;
+    pointer-events: none; z-index: 10;
+    animation: fadeNotice 1.8s ease forwards;
+  }
+  @keyframes fadeNotice {
+    0% { opacity:0; transform: translate(-50%,-50%) scale(0.9); }
+    20% { opacity:1; transform: translate(-50%,-50%) scale(1); }
+    70% { opacity:1; }
+    100% { opacity:0; }
+  }
+  .thinking-dots::after {
+    content: '...';
+    animation: dots 1.2s infinite;
+  }
+  @keyframes dots {
+    0%,100%{content:'.'} 33%{content:'..'} 66%{content:'...'}
+  }
+  html,body{height:100%}
+  @media(max-width:600px){
+    html,body{overflow:hidden}
+    body{
+      height:100dvh;
+      justify-content:flex-start;
+      padding:6px 6px 8px;
+    }
+    h1{font-size:15px;letter-spacing:3px;margin-bottom:2px}
+    .subtitle{font-size:8.5px;letter-spacing:1.5px;margin-bottom:6px}
+    .header-row{margin-bottom:0;gap:6px}
+    .sound-toggle{font-size:14px;padding:2px 6px}
+    .main{flex-direction:column;align-items:center;gap:6px;max-width:100%}
+    .board-section{order:1;width:100%}
+    .panel{order:2;width:100%;max-width:100%;flex:none;min-width:auto;padding:8px}
+    .panel-title{font-size:8.5px;margin-bottom:6px}
+    .score-row{gap:6px;margin-bottom:5px}
+    .disc-icon{width:18px;height:18px}
+    .score-label{font-size:9.5px}
+    .score-num{font-size:15px;min-width:22px}
+    .difficulty-group{gap:4px}
+    .btn{padding:5px 8px;font-size:9.5px;margin-bottom:4px}
+    .status-box{padding:5px;font-size:10.5px;min-height:28px;margin-bottom:5px}
+    .coords-top{margin-bottom:1px}
+    .coord-label{font-size:7.5px}
+    .board-outer{padding:5px}
+    .board{gap:1.5px}
+  }
+</style>
+</head>
+<body>
+
+<div class="header-row">
+  <h1>リバーシゲーム</h1>
+  <button class="sound-toggle" id="soundBtn" title="音声ON/OFF">🔊</button>
+</div>
+<div class="subtitle">Classic Strategy Game</div>
+
+<div class="main">
+  <div class="panel">
+    <div class="panel-title">Score</div>
+    <div class="score-row">
+      <div class="disc-icon disc-black"></div>
+      <span class="score-label">あなた (黒)</span>
+      <span class="score-num score-you" id="scoreBlack">2</span>
+    </div>
+    <div class="score-row">
+      <div class="disc-icon disc-white"></div>
+      <span class="score-label">AI (白)</span>
+      <span class="score-num score-ai" id="scoreWhite">2</span>
+    </div>
+    <div style="height:1px;background:#333;margin:12px 0;"></div>
+    <div class="panel-title">難易度</div>
+    <div class="difficulty-group">
+      <button class="btn active" id="d0" onclick="setDifficulty(0)">初級 — Easy</button>
+      <button class="btn" id="d1" onclick="setDifficulty(1)">中級 — Medium</button>
+      <button class="btn" id="d2" onclick="setDifficulty(2)">上級 — Hard</button>
+      <button class="btn" id="d3" onclick="setDifficulty(3)">最強 — Expert</button>
+    </div>
+    <div style="height:1px;background:#333;margin:12px 0;"></div>
+    <button class="btn btn-new" onclick="newGame()">▶ 新しいゲーム</button>
+  </div>
+
+  <div class="board-section" style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+    <div class="status-box" id="statusBox">あなたの番 (黒)</div>
+    <div class="board-wrap">
+      <div class="coords-top" id="coordsTop"></div>
+      <div class="board-container">
+        <div class="coords-side" id="coordsSide"></div>
+        <div class="board-outer">
+          <div class="board" id="board"></div>
+        </div>
+      </div>
+      <div id="passNotice"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const EMPTY=0,BLACK=1,WHITE=2;
+const DIR=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+let board=[], current=BLACK, difficulty=0, gameOver=false, soundOn=true, aiThinking=false;
+const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+
+function playSound(type) {
+  if(!soundOn) return;
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  const t=audioCtx.currentTime;
+  if(type==='place') {
+    o.type='sine'; o.frequency.setValueAtTime(440,t); o.frequency.exponentialRampToValueAtTime(220,t+0.15);
+    g.gain.setValueAtTime(0.15,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+    o.start(t); o.stop(t+0.2);
+  } else if(type==='flip') {
+    o.type='sine'; o.frequency.setValueAtTime(330,t); o.frequency.setValueAtTime(550,t+0.05);
+    g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15);
+    o.start(t); o.stop(t+0.15);
+  } else if(type==='win') {
+    const freqs=[523,659,784,1047];
+    freqs.forEach((f,i)=>{
+      const oo=audioCtx.createOscillator(), gg=audioCtx.createGain();
+      oo.connect(gg); gg.connect(audioCtx.destination);
+      const tt=t+i*0.12;
+      oo.type='sine'; oo.frequency.setValueAtTime(f,tt);
+      gg.gain.setValueAtTime(0.12,tt); gg.gain.exponentialRampToValueAtTime(0.001,tt+0.3);
+      oo.start(tt); oo.stop(tt+0.3);
+    });
+  } else if(type==='lose') {
+    o.type='sawtooth'; o.frequency.setValueAtTime(300,t); o.frequency.exponentialRampToValueAtTime(150,t+0.4);
+    g.gain.setValueAtTime(0.1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.4);
+    o.start(t); o.stop(t+0.4);
+  } else if(type==='pass') {
+    o.type='sine'; o.frequency.setValueAtTime(200,t);
+    g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3);
+    o.start(t); o.stop(t+0.3);
+  } else if(type==='invalid') {
+    o.type='square'; o.frequency.setValueAtTime(120,t);
+    g.gain.setValueAtTime(0.05,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.1);
+    o.start(t); o.stop(t+0.1);
+  }
+}
+
+function initBoard() {
+  board=Array.from({length:8},()=>Array(8).fill(EMPTY));
+  board[3][3]=WHITE; board[3][4]=BLACK;
+  board[4][3]=BLACK; board[4][4]=WHITE;
+}
+
+function getFlips(b,r,c,color) {
+  const opp=color===BLACK?WHITE:BLACK;
+  const flips=[];
+  for(const [dr,dc] of DIR) {
+    let nr=r+dr, nc=c+dc, line=[];
+    while(nr>=0&&nr<8&&nc>=0&&nc<8&&b[nr][nc]===opp) { line.push([nr,nc]); nr+=dr; nc+=dc; }
+    if(line.length>0&&nr>=0&&nr<8&&nc>=0&&nc<8&&b[nr][nc]===color) flips.push(...line);
+  }
+  return flips;
+}
+
+function validMoves(b,color) {
+  const moves=[];
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++)
+    if(b[r][c]===EMPTY&&getFlips(b,r,c,color).length>0) moves.push([r,c]);
+  return moves;
+}
+
+function applyMove(b,r,c,color) {
+  const nb=b.map(row=>[...row]);
+  nb[r][c]=color;
+  for(const [fr,fc] of getFlips(nb,r,c,color)) nb[fr][fc]=color;
+  return nb;
+}
+
+function countDiscs(b) {
+  let bl=0,wh=0;
+  for(const row of b) for(const v of row) { if(v===BLACK)bl++; if(v===WHITE)wh++; }
+  return {black:bl,white:wh};
+}
+
+const WEIGHTS=[
+  [120,-20,20,5,5,20,-20,120],
+  [-20,-40,-5,-5,-5,-5,-40,-20],
+  [20,-5,15,3,3,15,-5,20],
+  [5,-5,3,3,3,3,-5,5],
+  [5,-5,3,3,3,3,-5,5],
+  [20,-5,15,3,3,15,-5,20],
+  [-20,-40,-5,-5,-5,-5,-40,-20],
+  [120,-20,20,5,5,20,-20,120]
+];
+
+function evaluate(b,color) {
+  const opp=color===BLACK?WHITE:BLACK;
+  let score=0;
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
+    if(b[r][c]===color) score+=WEIGHTS[r][c];
+    else if(b[r][c]===opp) score-=WEIGHTS[r][c];
+  }
+  const myM=validMoves(b,color).length, opM=validMoves(b,opp).length;
+  score+=(myM-opM)*10;
+  return score;
+}
+
+function minimax(b,depth,alpha,beta,maximizing,color) {
+  const opp=color===BLACK?WHITE:BLACK;
+  const myColor=maximizing?WHITE:BLACK;
+  const moves=validMoves(b,myColor);
+  if(depth===0||moves.length===0) return evaluate(b,WHITE);
+  if(maximizing) {
+    let best=-Infinity;
+    for(const [r,c] of moves) {
+      const nb=applyMove(b,r,c,myColor);
+      best=Math.max(best,minimax(nb,depth-1,alpha,beta,false,color));
+      alpha=Math.max(alpha,best);
+      if(beta<=alpha) break;
+    }
+    return best;
+  } else {
+    let best=Infinity;
+    for(const [r,c] of moves) {
+      const nb=applyMove(b,r,c,myColor);
+      best=Math.min(best,minimax(nb,depth-1,alpha,beta,true,color));
+      beta=Math.min(beta,best);
+      if(beta<=alpha) break;
+    }
+    return best;
+  }
+}
+
+function aiMove() {
+  const depths=[1,3,5,7];
+  const depth=depths[difficulty];
+  const moves=validMoves(board,WHITE);
+  if(moves.length===0) return null;
+  if(difficulty===0) return moves[Math.floor(Math.random()*moves.length)];
+  let best=-Infinity, bestMove=moves[0];
+  for(const [r,c] of moves) {
+    const nb=applyMove(board,r,c,WHITE);
+    const score=minimax(nb,depth-1,-Infinity,Infinity,false,WHITE);
+    if(score>best) { best=score; bestMove=[r,c]; }
+  }
+  return bestMove;
+}
+
+function renderBoard() {
+  const boardEl=document.getElementById('board');
+  const valid=gameOver||aiThinking?[]:validMoves(board,current).map(([r,c])=>`${r},${c}`);
+  boardEl.innerHTML='';
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
+    const cell=document.createElement('div');
+    cell.className='cell'+(valid.includes(`${r},${c}`)?' valid':'');
+    cell.onclick=()=>playerMove(r,c);
+    if(board[r][c]!==EMPTY) {
+      const disc=document.createElement('div');
+      disc.className='disc '+(board[r][c]===BLACK?'black':'white');
+      cell.appendChild(disc);
+    }
+    boardEl.appendChild(cell);
+  }
+  const cnt=countDiscs(board);
+  document.getElementById('scoreBlack').textContent=cnt.black;
+  document.getElementById('scoreWhite').textContent=cnt.white;
+}
+
+function renderCoords() {
+  const top=document.getElementById('coordsTop');
+  const side=document.getElementById('coordsSide');
+  top.innerHTML='<div style="width:12px"></div>';
+  'ABCDEFGH'.split('').forEach(l=>{
+    const d=document.createElement('div');
+    d.className='coord-label coord-col'; d.textContent=l; top.appendChild(d);
+  });
+  side.innerHTML='';
+  for(let i=1;i<=8;i++){
+    const d=document.createElement('div');
+    d.className='coord-label coord-row'; d.textContent=i; side.appendChild(d);
+  }
+}
+
+function setStatus(msg,cls) {
+  const el=document.getElementById('statusBox');
+  el.textContent=msg; el.className='status-box'+(cls?' '+cls:'');
+}
+
+function showPassNotice(msg) {
+  const el=document.getElementById('passNotice');
+  const div=document.createElement('div');
+  div.className='pass-notice'; div.textContent=msg; el.innerHTML=''; el.appendChild(div);
+  setTimeout(()=>el.innerHTML='',1900);
+}
+
+async function playerMove(r,c) {
+  if(gameOver||aiThinking||current!==BLACK) return;
+  const flips=getFlips(board,r,c,BLACK);
+  if(flips.length===0) { playSound('invalid'); return; }
+  board=applyMove(board,r,c,BLACK);
+  playSound('place');
+  animateFlips(r,c,flips,'black');
+  current=WHITE;
+  renderBoard();
+  await checkAndContinue();
+}
+
+function animateFlips(pr,pc,flips,color) {
+  const boardEl=document.getElementById('board');
+  const cells=boardEl.querySelectorAll('.cell');
+  flips.forEach(([r,c],i)=>{
+    setTimeout(()=>{
+      const cell=cells[r*8+c];
+      const disc=cell.querySelector('.disc');
+      if(disc) { disc.classList.add('flip'); playSound('flip'); }
+    }, i*60);
+  });
+}
+
+async function checkAndContinue() {
+  const whiteMoves=validMoves(board,WHITE);
+  const blackMoves=validMoves(board,BLACK);
+  if(whiteMoves.length===0&&blackMoves.length===0) {
+    endGame(); return;
+  }
+  if(current===WHITE) {
+    if(whiteMoves.length===0) {
+      showPassNotice('AIはパス'); playSound('pass');
+      current=BLACK;
+      setStatus('あなたの番 (黒)','player-turn');
+      renderBoard(); return;
+    }
+    await doAiTurn();
+  } else {
+    if(blackMoves.length===0) {
+      showPassNotice('あなたはパス'); playSound('pass');
+      current=WHITE;
+      await doAiTurn();
+    } else {
+      setStatus('あなたの番 (黒)','player-turn');
+      renderBoard();
+    }
+  }
+}
+
+async function doAiTurn() {
+  aiThinking=true;
+  setStatus('AIが考え中','ai-turn');
+  document.querySelector('#statusBox').innerHTML='<span class="thinking-dots">AIが考え中</span>';
+  renderBoard();
+  await new Promise(r=>setTimeout(r,difficulty===0?400:600+difficulty*200));
+  const move=aiMove();
+  if(move) {
+    const [r,c]=move;
+    const flips=getFlips(board,r,c,WHITE);
+    board=applyMove(board,r,c,WHITE);
+    playSound('place');
+    animateFlips(r,c,flips,'white');
+  }
+  current=BLACK; aiThinking=false;
+  renderBoard();
+  const blackMoves=validMoves(board,BLACK);
+  const whiteMoves=validMoves(board,WHITE);
+  if(blackMoves.length===0&&whiteMoves.length===0) { endGame(); return; }
+  if(blackMoves.length===0) {
+    showPassNotice('あなたはパス'); playSound('pass'); current=WHITE;
+    await doAiTurn();
+  } else {
+    setStatus('あなたの番 (黒)','player-turn');
+  }
+}
+
+function endGame() {
+  gameOver=true;
+  const cnt=countDiscs(board);
+  let msg;
+  if(cnt.black>cnt.white) { msg=`あなたの勝ち！ 🎉 (${cnt.black}-${cnt.white})`; playSound('win'); }
+  else if(cnt.white>cnt.black) { msg=`AIの勝ち (${cnt.black}-${cnt.white})`; playSound('lose'); }
+  else { msg=`引き分け (${cnt.black}-${cnt.white})`; }
+  setStatus(msg,'game-over');
+  renderBoard();
+}
+
+function setDifficulty(d) {
+  difficulty=d;
+  document.querySelectorAll('.difficulty-group .btn').forEach((b,i)=>b.classList.toggle('active',i===d));
+  newGame();
+}
+
+function newGame() {
+  initBoard(); current=BLACK; gameOver=false; aiThinking=false;
+  setStatus('あなたの番 (黒)','player-turn');
+  renderBoard();
+}
+
+function computeCellSize() {
+  if (window.innerWidth > 600) {
+    return Math.max(36, Math.min(62, Math.floor(window.innerWidth*0.08)));
+  }
+  /* モバイル：ヘッダー・ステータス・パネルの実測高さから逆算し、
+     盤面が画面に収まってスクロールが出ないようにする */
+  const headerRow=document.querySelector('.header-row');
+  const subtitle=document.querySelector('.subtitle');
+  const statusBox=document.getElementById('statusBox');
+  const panel=document.querySelector('.panel');
+  const coordsTop=document.getElementById('coordsTop');
+  const boardOuter=document.querySelector('.board-outer');
+  const mainEl=document.querySelector('.main');
+  const bs=getComputedStyle(document.body);
+  const padV=(parseFloat(bs.paddingTop)||0)+(parseFloat(bs.paddingBottom)||0);
+  const gh=el=>el?el.getBoundingClientRect().height:0;
+  const gmb=el=>el?parseFloat(getComputedStyle(el).marginBottom)||0:0;
+  const headerH=gh(headerRow)+gmb(headerRow);
+  const subtitleH=gh(subtitle)+gmb(subtitle);
+  const statusH=gh(statusBox)+gmb(statusBox);
+  const panelH=gh(panel);
+  const coordsTopH=gh(coordsTop)+gmb(coordsTop);
+  const outerCs=boardOuter?getComputedStyle(boardOuter):null;
+  const outerPad=outerCs?(parseFloat(outerCs.paddingTop)+parseFloat(outerCs.paddingBottom)):16;
+  const outerBorder=outerCs?parseFloat(outerCs.borderTopWidth)*2:6;
+  const mainGap=mainEl?parseFloat(getComputedStyle(mainEl).rowGap)||6:6;
+  const boardColGap=10;
+  const safety=14;
+  const usedH=padV+headerH+subtitleH+statusH+panelH+coordsTopH+outerPad+outerBorder+mainGap+boardColGap+safety;
+  const availH=window.innerHeight-usedH;
+  const availW=window.innerWidth-24;
+  let size=Math.floor(Math.min(availW,availH)/8);
+  size=Math.max(24,Math.min(size,46));
+  return size;
+}
+
+function applyCellSize() {
+  document.documentElement.style.setProperty('--cell', computeCellSize()+'px');
+}
+
+document.getElementById('soundBtn').onclick=()=>{
+  soundOn=!soundOn;
+  document.getElementById('soundBtn').textContent=soundOn?'🔊':'🔇';
+};
+
+applyCellSize();
+renderCoords();
+newGame();
+window.addEventListener('resize',()=>{ applyCellSize(); });
+</script>
+</body>
+</html>
