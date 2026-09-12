@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BINGO</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  width:100%;height:100%;
+  background:#060d14;
+  font-family:'Share Tech Mono',monospace;
+  color:#c8ffd8;
+  overflow:hidden;
+}
+.wrap{
+  display:flex;flex-direction:column;
+  width:100vw;height:100vh;
+  padding:clamp(8px,2vw,24px);
+  gap:clamp(6px,1.5vh,16px);
+}
+.header{text-align:center;flex-shrink:0;}
+.title{
+  font-family:'Orbitron',monospace;
+  font-size:clamp(1.4rem,4vw,2.8rem);
+  font-weight:900;letter-spacing:0.35em;color:#00ff88;
+  text-shadow:0 0 20px #00ff8844;
+}
+.subtitle{font-size:clamp(8px,1.2vw,11px);color:#4a8a6a;letter-spacing:0.25em;margin-top:3px}
+.middle{
+  display:flex;gap:clamp(8px,2vw,20px);
+  flex:1;min-height:0;
+}
+.left-panel{
+  display:flex;flex-direction:column;
+  gap:clamp(6px,1.5vh,12px);
+  width:clamp(90px,18vw,170px);flex-shrink:0;
+}
+.current-display{
+  background:#0d1526;border:1px solid #1a4a2a;border-radius:8px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  flex:1;position:relative;overflow:hidden;
+}
+.current-display::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,#00ff88,transparent);opacity:0.6;
+}
+.current-label{font-size:clamp(7px,1vw,10px);color:#4a8a6a;letter-spacing:0.2em;margin-bottom:6px}
+.current-number{
+  font-family:'Orbitron',monospace;
+  font-size:clamp(2.2rem,7vw,5.5rem);
+  font-weight:900;color:#00ff88;
+  text-shadow:0 0 16px #00ff8866;line-height:1;
+}
+.current-number.animate{animation:numFlash 0.4s ease}
+@keyframes numFlash{
+  0%{transform:scale(0.5);opacity:0.1}
+  60%{transform:scale(1.15);opacity:1}
+  100%{transform:scale(1)}
+}
+.stat-box{
+  background:#0d1526;border:1px solid #1a3a2a;border-radius:6px;
+  padding:clamp(6px,1.5vh,14px);text-align:center;
+}
+.stat-label{font-size:clamp(7px,1vw,9px);color:#4a8a6a;letter-spacing:0.15em}
+.stat-val{
+  font-family:'Orbitron',monospace;
+  font-size:clamp(1.1rem,3vw,2rem);font-weight:700;color:#00ccff;
+}
+.right-panel{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;
+  gap:clamp(6px,1.5vh,12px);
+}
+.history-label{font-size:clamp(7px,1vw,9px);color:#4a8a6a;letter-spacing:0.2em;margin-bottom:5px}
+.history-chips{
+  display:flex;flex-wrap:wrap;gap:4px;
+  max-height:clamp(36px,8vh,64px);overflow:hidden;
+}
+.chip{
+  font-family:'Orbitron',monospace;
+  font-size:clamp(8px,1.2vw,12px);font-weight:700;
+  width:clamp(24px,3.5vw,34px);height:clamp(24px,3.5vw,34px);
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;border:1px solid #00ff88;
+  color:#00ff88;background:#001a0a;
+  animation:chipPop 0.3s ease;flex-shrink:0;
+}
+@keyframes chipPop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.2)}100%{transform:scale(1);opacity:1}}
+.ball-grid{
+  flex:1;min-height:0;
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  grid-template-rows:repeat(5,1fr);
+  gap:clamp(4px,0.8vw,8px);
+}
+.ball{
+  display:flex;align-items:center;justify-content:center;
+  border-radius:6px;border:1px solid #1a3a2a;
+  font-family:'Orbitron',monospace;
+  font-size:clamp(10px,2vw,20px);font-weight:700;
+  color:#2a5a3a;background:#0d1526;
+  transition:all 0.3s;
+}
+.ball.called{
+  border-color:#00ff88;color:#060d14;background:#00ff88;
+  box-shadow:0 0 8px #00ff8844;
+}
+.ball.just-called{animation:ballLight 0.5s ease}
+@keyframes ballLight{
+  0%{background:#fff;border-color:#fff;transform:scale(1.2)}
+  100%{background:#00ff88;border-color:#00ff88;transform:scale(1)}
+}
+.bottom{
+  display:flex;align-items:center;gap:clamp(8px,2vw,16px);
+  flex-shrink:0;justify-content:center;
+}
+.btn{
+  font-family:'Orbitron',monospace;
+  font-size:clamp(10px,1.5vw,14px);font-weight:700;letter-spacing:0.1em;
+  padding:clamp(8px,1.5vh,14px) clamp(18px,3vw,32px);
+  border-radius:6px;cursor:pointer;transition:all 0.2s;
+}
+.btn.primary{border:1px solid #00ff88;background:#00ff88;color:#060d14;}
+.btn.primary:hover{background:#22ffaa;box-shadow:0 0 14px #00ff8855}
+.btn.primary:disabled{opacity:0.4;cursor:default}
+.btn.danger{border:1px solid #ff4466;background:transparent;color:#ff4466}
+.btn.danger:hover{background:#ff446622}
+.btn:active:not(:disabled){transform:scale(0.97)}
+.done-msg{
+  font-family:'Orbitron',monospace;font-size:clamp(10px,2vw,14px);font-weight:700;
+  color:#00ccff;padding:clamp(6px,1vh,10px) clamp(12px,2vw,20px);
+  border:1px solid #00ccff;border-radius:6px;letter-spacing:0.1em;
+  animation:pulse 1.5s infinite;display:none;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.scan-line{
+  position:fixed;height:2px;left:0;right:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent,#00ccff33,transparent);
+  animation:scan 4s linear infinite;
+}
+@keyframes scan{0%{top:0}100%{top:100vh}}
+
+/* 🎵 音符エフェクト */
+.note-particle {
+  position: fixed;
+  font-size: clamp(16px, 3vw, 28px);
+  pointer-events: none;
+  z-index: 9999;
+  animation: noteFloat 1.2s ease-out forwards;
+}
+@keyframes noteFloat {
+  0%   { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(-80px) scale(0.4) rotate(20deg); opacity: 0; }
+}
+
+/* 🌈 ドロー時フラッシュオーバーレイ */
+.flash-overlay {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 9998;
+  background: radial-gradient(ellipse at center, #00ff8822 0%, transparent 70%);
+  opacity: 0;
+  animation: flashPop 0.5s ease-out forwards;
+}
+@keyframes flashPop {
+  0%   { opacity: 1; transform: scale(0.95); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+</style>
+</head>
+<body>
+<div class="scan-line"></div>
+<div class="wrap">
+  <div class="header">
+    <div class="title">B I N G O</div>
+    <div class="subtitle">DIGITAL NUMBER CALLER</div>
+  </div>
+  <div class="middle">
+    <div class="left-panel">
+      <div class="current-display">
+        <div class="current-label">NOW CALLING</div>
+        <div class="current-number" id="curNum">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">CALLED</div>
+        <div class="stat-val" id="calledCount">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">REMAINING</div>
+        <div class="stat-val" id="remCount">25</div>
+      </div>
+    </div>
+    <div class="right-panel">
+      <div>
+        <div class="history-label">▸ CALL HISTORY</div>
+        <div class="history-chips" id="history"></div>
+      </div>
+      <div class="ball-grid" id="ballGrid"></div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="done-msg" id="doneMsg">✦ ALL NUMBERS CALLED ✦</div>
+    <button class="btn primary" id="drawBtn" onclick="draw()">▶ DRAW</button>
+    <button class="btn danger" onclick="reset()">⟳ RESET</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 🎵 Web Audio API — ゲームショー風サウンドエンジン
+// ============================================================
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+// ドラムロール + ジャジャーン（ゲームショー風）
+function playDrawSound() {
+  const ctx = getAudio();
+  const now = ctx.currentTime;
+
+  // --- ドラムロール（タイコ連打） ---
+  const rollBeats = 8;
+  for (let i = 0; i < rollBeats; i++) {
+    const t = now + i * 0.055;
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let s = 0; s < data.length; s++) {
+      data[s] = (Math.random() * 2 - 1) * Math.exp(-s / (ctx.sampleRate * 0.025));
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.18 + i * 0.015, t);
+    const bpf = ctx.createBiquadFilter();
+    bpf.type = 'bandpass';
+    bpf.frequency.value = 180 + i * 12;
+    bpf.Q.value = 0.8;
+    src.connect(bpf);
+    bpf.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(t);
+    src.stop(t + 0.08);
+  }
+
+  const fanfareStart = now + rollBeats * 0.055 + 0.02;
+
+  // --- ジャジャーン（明るいファンファーレ和音） ---
+  const chordNotes = [
+    // C5, E5, G5, C6 → 子供向け明るい長和音
+    [523.25, 0.00],
+    [659.25, 0.04],
+    [783.99, 0.08],
+    [1046.50, 0.13],
+  ];
+  chordNotes.forEach(([freq, delay]) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, fanfareStart + delay);
+    // 上昇グリス
+    osc.frequency.linearRampToValueAtTime(freq * 1.02, fanfareStart + delay + 0.06);
+    gain.gain.setValueAtTime(0, fanfareStart + delay);
+    gain.gain.linearRampToValueAtTime(0.13, fanfareStart + delay + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, fanfareStart + delay + 0.55);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(fanfareStart + delay);
+    osc.stop(fanfareStart + delay + 0.6);
+  });
+
+  // --- キラキラ高音（子供向けスパークル） ---
+  const sparkleFreqs = [1200, 1500, 1800, 2100, 2400];
+  sparkleFreqs.forEach((freq, i) => {
+    const t = fanfareStart + 0.15 + i * 0.07;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 0.15);
+    gain.gain.setValueAtTime(0.07, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.22);
+  });
+}
+
+// 全数字読み上げ完了時のファンファーレ
+function playFinaleSound() {
+  const ctx = getAudio();
+  const now = ctx.currentTime;
+
+  // 上昇アルペジオ → 大和音
+  const melody = [
+    [523, 0.00], [659, 0.10], [784, 0.20], [1047, 0.30],
+    [1319, 0.40], [1047, 0.52], [1319, 0.60], [1047, 0.68],
+  ];
+  melody.forEach(([freq, delay]) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, now + delay);
+    gain.gain.linearRampToValueAtTime(0.18, now + delay + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.35);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now + delay); osc.stop(now + delay + 0.4);
+  });
+}
+
+// ============================================================
+// 🎉 ビジュアルエフェクト
+// ============================================================
+const NOTES = ['🎵','🎶','⭐','✨','🌟'];
+function spawnNotes(btn) {
+  const rect = btn.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  for (let i = 0; i < 6; i++) {
+    const el = document.createElement('div');
+    el.className = 'note-particle';
+    el.textContent = NOTES[Math.floor(Math.random() * NOTES.length)];
+    el.style.left = (cx + (Math.random() - 0.5) * 80) + 'px';
+    el.style.top  = (cy + (Math.random() - 0.5) * 40) + 'px';
+    el.style.animationDelay = (Math.random() * 0.2) + 's';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1400);
+  }
+}
+function spawnFlash() {
+  const el = document.createElement('div');
+  el.className = 'flash-overlay';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 600);
+}
+
+// ============================================================
+// ビンゴロジック
+// ============================================================
+let pool = [], called = [];
+
+function init() {
+  pool = []; called = [];
+  for (let i = 1; i <= 25; i++) pool.push(i);
+  shuffle(pool);
+  document.getElementById('curNum').textContent = '--';
+  document.getElementById('calledCount').textContent = '0';
+  document.getElementById('remCount').textContent = '25';
+  document.getElementById('history').innerHTML = '';
+  document.getElementById('doneMsg').style.display = 'none';
+  const btn = document.getElementById('drawBtn');
+  btn.disabled = false;
+  renderGrid();
+}
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+}
+
+function renderGrid() {
+  const g = document.getElementById('ballGrid'); g.innerHTML = '';
+  for (let i = 1; i <= 25; i++) {
+    const d = document.createElement('div');
+    d.className = 'ball' + (called.includes(i) ? ' called' : '');
+    d.id = 'ball' + i;
+    d.textContent = i < 10 ? '0' + i : i;
+    g.appendChild(d);
+  }
+}
+
+function draw() {
+  if (!pool.length) return;
+
+  const btn = document.getElementById('drawBtn');
+
+  // 🎵 サウンド再生
+  playDrawSound();
+
+  // 🌟 ビジュアルエフェクト
+  spawnNotes(btn);
+  spawnFlash();
+
+  const n = pool.shift(); called.push(n);
+
+  const el = document.getElementById('curNum');
+  el.classList.remove('animate'); void el.offsetWidth; el.classList.add('animate');
+  el.textContent = n < 10 ? '0' + n : n;
+
+  document.getElementById('calledCount').textContent = called.length;
+  document.getElementById('remCount').textContent = pool.length;
+
+  const prev = document.querySelector('.ball.just-called');
+  if (prev) prev.classList.remove('just-called');
+  document.getElementById('ball' + n).classList.add('called', 'just-called');
+
+  const chip = document.createElement('div');
+  chip.className = 'chip'; chip.textContent = n < 10 ? '0' + n : n;
+  const hist = document.getElementById('history');
+  hist.insertBefore(chip, hist.firstChild);
+
+  if (!pool.length) {
+    setTimeout(playFinaleSound, 200);
+    document.getElementById('doneMsg').style.display = 'block';
+    btn.disabled = true;
+  }
+}
+
+function reset() { init(); }
+init();
+</script>
+</body>
+</html>
