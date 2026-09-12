@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>どうぶつボールパズル</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: #03030f;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+#hud {
+  width: 480px;
+  background: #080822;
+  color: #eee;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  font-size: 15px;
+  gap: 20px;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid #1a1a44;
+  border-bottom: none;
+}
+.val { color: #ffe040; font-size: 20px; font-weight: bold; }
+#bgmBtn {
+  margin-left: auto;
+  background: #12123a;
+  color: #99aaff;
+  border: 1px solid #3344aa;
+  border-radius: 6px;
+  padding: 4px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background .15s;
+}
+#bgmBtn:hover { background: #1e1e50; }
+canvas {
+  display: block;
+  cursor: crosshair;
+  border-radius: 0 0 10px 10px;
+  border: 1px solid #1a1a44;
+  border-top: none;
+}
+</style>
+</head>
+<body>
+<div id="hud">
+  <span>スコア: <span class="val" id="scoreEl">0</span></span>
+  <span>レベル: <span class="val" id="levelEl">1</span></span>
+  <button id="bgmBtn">♪ BGM: ON</button>
+</div>
+<canvas id="c" width="480" height="600"></canvas>
+<script>
+var C = document.getElementById('c');
+var ctx = C.getContext('2d');
+var W = 480, H = 600;
+var scoreEl = document.getElementById('scoreEl');
+var levelEl = document.getElementById('levelEl');
+
+// ── AUDIO ────────────────────────────────────────────────────
+var AC = new (window.AudioContext || window.webkitAudioContext)();
+var masterGain = AC.createGain();
+masterGain.gain.value = 0.7;
+masterGain.connect(AC.destination);
+
+function tone(f, d, v, t, delay) {
+  var osc = AC.createOscillator(), g = AC.createGain();
+  osc.connect(g); g.connect(masterGain);
+  osc.type = t || 'sine';
+  osc.frequency.value = f;
+  var s = AC.currentTime + (delay || 0);
+  g.gain.setValueAtTime(v, s);
+  g.gain.exponentialRampToValueAtTime(0.0001, s + Math.max(d, 0.02));
+  osc.start(s); osc.stop(s + Math.max(d, 0.02) + 0.01);
+}
+
+// BGM — looping melody
+var bgmOn = true, bgmTmr = null, bgmStep = 0;
+var BM = [523,659,784,659,523,587,784,880, 784,659,523,440,493,523,659,784, 659,523,392,440,523,659,784,659];
+var BD = [.2,.2,.2,.2,.35,.2,.2,.35, .2,.2,.2,.2,.2,.2,.2,.35, .2,.35,.2,.2,.2,.2,.4,.4];
+
+function bgmNext() {
+  if (!bgmOn) return;
+  var f = BM[bgmStep % BM.length];
+  var d = BD[bgmStep % BD.length];
+  tone(f, d * 0.88, 0.055, 'triangle');
+  tone(f / 2, d * 0.88, 0.025, 'sine');
+  bgmStep++;
+  bgmTmr = setTimeout(bgmNext, d * 1000);
+}
+function startBGM() { clearTimeout(bgmTmr); bgmTmr = null; bgmNext(); }
+function stopBGM() { clearTimeout(bgmTmr); bgmTmr = null; }
+
+function sfxPop(n) {
+  var freqs = [480,560,660,780,900];
+  for (var i = 0; i < Math.min(n, 5); i++) {
+    tone(freqs[i], 0.13, 0.18, 'sine', i * 0.038);
+  }
+  if (n >= 5) tone(1100, 0.18, 0.22, 'sine', 0.16);
+}
+function sfxShoot() { tone(260, 0.055, 0.1, 'square'); }
+function sfxLevelUp() { [523,659,784,1047].forEach(function(f,i){ tone(f,.18,.16,'sine',i*.1); }); }
+function sfxOver() { [440,392,330,262].forEach(function(f,i){ tone(f,.28,.18,'sawtooth',i*.16); }); }
+function sfxClear() { [784,880,988,1175,1319].forEach(function(f,i){ tone(f,.16,.2,'sine',i*.09); }); }
+function sfxDanger() { tone(110, 0.12, 0.12, 'sawtooth'); }
+
+document.getElementById('bgmBtn').onclick = function() {
+  bgmOn = !bgmOn;
+  this.textContent = '♪ BGM: ' + (bgmOn ? 'ON' : 'OFF');
+  if (bgmOn) startBGM(); else stopBGM();
+  AC.resume();
+};
+
+// ── PATH ─────────────────────────────────────────────────────
+var DX = 240, DY = 508;  // drain position
+var PATH = [
+  {x:445,y:40},  {x:35,y:40},
+  {x:35,y:125},  {x:445,y:125},
+  {x:445,y:210}, {x:35,y:210},
+  {x:35,y:295},  {x:445,y:295},
+  {x:445,y:380}, {x:35,y:380},
+  {x:35,y:455},  {x:DX,y:455},
+  {x:DX,y:DY}
+];
+var SEG = [], TLEN = 0;
+(function() {
+  for (var i = 0; i < PATH.length - 1; i++) {
+    var dx = PATH[i+1].x - PATH[i].x, dy = PATH[i+1].y - PATH[i].y;
+    var l = Math.sqrt(dx*dx + dy*dy);
+    SEG.push(l); TLEN += l;
+  }
+})();
+
+function pathXY(dist) {
+  var d = Math.max(0, dist);
+  for (var s = 0; s < SEG.length; s++) {
+    if (d <= SEG[s]) {
+      var t = d / SEG[s];
+      return { x: PATH[s].x + (PATH[s+1].x - PATH[s].x) * t,
+               y: PATH[s].y + (PATH[s+1].y - PATH[s].y) * t };
+    }
+    d -= SEG[s];
+  }
+  return { x: PATH[PATH.length-1].x, y: PATH[PATH.length-1].y };
+}
+
+// ── CONSTANTS ────────────────────────────────────────────────
+var BR = 18, SP = BR * 2 + 2;   // ball radius, spacing
+var SX = 240, SY = 566;          // shooter position
+
+var COLS  = ['#e74c3c','#2980b9','#27ae60','#f39c12','#8e44ad'];
+var DARK  = ['#7b241c','#1a5276','#145a32','#7d6608','#4a235a'];
+var LITE  = ['#f1948a','#85c1e9','#82e0aa','#f8c471','#c39bd3'];
+var FACES = ['🐶','🐱','🐰','🐻','🐼'];
+var NC = COLS.length;
+
+// ── GAME STATE ───────────────────────────────────────────────
+var chain = [];        // [0]=back(path start), [last]=front(drain side)
+var frontDist = 0;     // path distance of front ball
+var proj = null;       // {x,y,vx,vy,color}
+var curC = 0, nxtC = 0;
+var score = 0, level = 1, speed = 0.38;
+var SPAWN_I = 210, spawnT = 0;
+var state = 'title';   // title|playing|over
+var angle = -Math.PI / 2;
+var flash = '', flashT = 0;
+var combo = 0;
+var dpulse = 0;
+var frame = 0;
+var dangerSoundT = 0;
+
+function rc() { return Math.floor(Math.random() * NC); }
+
+function initGame() {
+  chain = [];
+  for (var i = 0; i < 20; i++) chain.push(rc());
+  frontDist = 19 * SP;
+  proj = null; curC = rc(); nxtC = rc();
+  score = 0; level = 1; speed = 0.38;
+  SPAWN_I = 210; spawnT = 0; combo = 0; frame = 0;
+  flash = ''; flashT = 0; dangerSoundT = 0;
+  scoreEl.textContent = 0; levelEl.textContent = 1;
+  state = 'playing';
+  if (bgmOn) { bgmStep = 0; startBGM(); }
+}
+
+// ── INPUT ─────────────────────────────────────────────────────
+function canvasXY(e) {
+  var r = C.getBoundingClientRect();
+  var s = e.touches ? e.touches[0] : e;
+  return { x: s.clientX - r.left, y: s.clientY - r.top };
+}
+
+C.addEventListener('mousemove', function(e) {
+  var p = canvasXY(e);
+  if (state === 'playing') angle = Math.atan2(p.y - SY, p.x - SX);
+});
+
+C.addEventListener('click', doShoot);
+C.addEventListener('touchstart', function(e) {
+  e.preventDefault(); AC.resume();
+  var p = canvasXY(e);
+  if (state === 'playing') angle = Math.atan2(p.y - SY, p.x - SX);
+  doShoot(e);
+}, { passive: false });
+
+function doShoot() {
+  AC.resume();
+  if (state !== 'playing') { initGame(); return; }
+  if (proj) return;
+  // Don't allow shooting straight down (toward drain)
+  if (angle > Math.PI * 0.15 && angle < Math.PI * 0.85) return;
+  sfxShoot();
+  proj = { x: SX, y: SY, vx: Math.cos(angle) * 11, vy: Math.sin(angle) * 11, color: curC };
+  curC = nxtC; nxtC = rc();
+}
+
+// ── MATCH CHECK ──────────────────────────────────────────────
+function checkMatch(idx) {
+  if (chain.length === 0) return false;
+  idx = Math.max(0, Math.min(idx, chain.length - 1));
+  var c = chain[idx], lo = idx, hi = idx;
+  while (lo > 0 && chain[lo-1] === c) lo--;
+  while (hi < chain.length - 1 && chain[hi+1] === c) hi++;
+  var cnt = hi - lo + 1;
+  if (cnt >= 3) {
+    chain.splice(lo, cnt);
+    var pts = cnt * 10 * (combo + 1);
+    score += pts; combo++;
+    scoreEl.textContent = score;
+    sfxPop(cnt);
+    if (combo >= 4) flash = 'COMBO×' + combo + '!!';
+    else if (cnt >= 5) flash = 'SUPER!!';
+    else if (cnt === 4) flash = 'GREAT!';
+    else flash = 'NICE!';
+    flashT = 70;
+    if (chain.length === 0) {
+      score += 500; scoreEl.textContent = score;
+      flash = 'ALL CLEAR!! +500';
+      flashT = 120; frontDist = SP;
+      sfxClear();
+    } else {
+      var next = Math.min(lo, chain.length - 1);
+      checkMatch(next); // chain reaction
+    }
+    return true;
+  }
+  return false;
+}
+
+// ── UPDATE ────────────────────────────────────────────────────
+function update() {
+  if (state !== 'playing') return;
+
+  // Advance chain toward drain
+  if (chain.length > 0) frontDist += speed;
+
+  // Spawn new ball at path start
+  spawnT++;
+  if (spawnT >= SPAWN_I) {
+    spawnT = 0;
+    if (chain.length === 0) frontDist = SP;
+    chain.unshift(rc());
+  }
+
+  // Danger indicator & sound
+  var dDist = TLEN - frontDist;
+  dpulse = (dpulse + 0.08) % (Math.PI * 2);
+  if (chain.length > 0 && dDist < 160) {
+    dangerSoundT++;
+    if (dangerSoundT >= Math.max(20, Math.floor(dDist / 5))) {
+      dangerSoundT = 0; sfxDanger();
+    }
+  } else { dangerSoundT = 0; }
+
+  // Game over: front ball reached drain
+  if (chain.length > 0 && frontDist >= TLEN - BR) {
+    state = 'over'; stopBGM(); sfxOver(); return;
+  }
+
+  // Move projectile
+  if (proj) {
+    proj.x += proj.vx; proj.y += proj.vy;
+    // Bounce off side walls
+    if (proj.x < BR) { proj.x = BR; proj.vx = Math.abs(proj.vx); }
+    if (proj.x > W - BR) { proj.x = W - BR; proj.vx = -Math.abs(proj.vx); }
+    // Off top/bottom
+    if (proj.y < -BR || proj.y > H + BR) { proj = null; combo = 0; return; }
+
+    if (chain.length > 0) {
+      // Find closest chain ball within collision range
+      var best = -1, bestD2 = (BR * 2) * (BR * 2);
+      for (var i = 0; i < chain.length; i++) {
+        var bd = frontDist - (chain.length - 1 - i) * SP;
+        if (bd < 0) continue;
+        var bp = pathXY(bd);
+        var ddx = proj.x - bp.x, ddy = proj.y - bp.y;
+        var d2 = ddx * ddx + ddy * ddy;
+        if (d2 < bestD2) { bestD2 = d2; best = i; }
+      }
+      if (best >= 0) {
+        var ins;
+        if (best === chain.length - 1) {
+          // Hit front ball — insert in front
+          ins = chain.length; frontDist += SP;
+        } else if (best === 0) {
+          ins = 0;
+        } else {
+          // Which side is closer?
+          var bdn = frontDist - (chain.length - 2 - best) * SP;
+          var bpn = pathXY(bdn);
+          var dxn = proj.x - bpn.x, dyn = proj.y - bpn.y;
+          var bdp = frontDist - (chain.length - best) * SP;
+          var bpp = pathXY(bdp);
+          var dxp = proj.x - bpp.x, dyp = proj.y - bpp.y;
+          ins = (dxn*dxn + dyn*dyn < dxp*dxp + dyp*dyp) ? best + 1 : best;
+        }
+        chain.splice(ins, 0, proj.color);
+        proj = null;
+        var matched = checkMatch(ins);
+        if (!matched) combo = 0;
+      }
+    }
+  }
+
+  if (flashT > 0) flashT--;
+
+  // Level progression
+  var lv = Math.floor(score / 600) + 1;
+  if (lv > level) {
+    level = lv;
+    speed = 0.38 + level * 0.06;
+    SPAWN_I = Math.max(80, 210 - level * 12);
+    levelEl.textContent = level;
+    flash = 'LEVEL ' + level + '!';
+    flashT = 90; sfxLevelUp();
+  }
+}
+
+// ── DRAW HELPERS ──────────────────────────────────────────────
+function drawBall(x, y, ci, r) {
+  r = r || BR;
+  // Drop shadow
+  ctx.beginPath(); ctx.arc(x + 2, y + 3, r, 0, 6.283);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
+  // Gradient sphere
+  var g = ctx.createRadialGradient(x - r*.3, y - r*.32, r * .04, x + r * .12, y + r * .1, r);
+  g.addColorStop(0, LITE[ci]);
+  g.addColorStop(0.48, COLS[ci]);
+  g.addColorStop(1, DARK[ci]);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283);
+  ctx.fillStyle = g; ctx.fill();
+  // Animal face
+  ctx.save();
+  ctx.font = Math.round(r * 1.9) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(FACES[ci], x, y + r * 0.08);
+  ctx.restore();
+  // Specular highlight (kept subtle, corner only, so it doesn't cover the face)
+  ctx.beginPath(); ctx.arc(x - r * .55, y - r * .55, r * .18, 0, 6.283);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fill();
+}
+
+function drawPath() {
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  var drawLine = function(w, col) {
+    ctx.beginPath();
+    PATH.forEach(function(p, i){ i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+  };
+  drawLine(SP + 12, '#0d0d30');
+  drawLine(SP + 4,  '#131340');
+  drawLine(SP,      '#191960');
+  // Center dots
+  ctx.beginPath();
+  PATH.forEach(function(p, i){ i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
+  ctx.strokeStyle = 'rgba(70,70,150,0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 10]); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawDrain() {
+  var dDist = TLEN - frontDist;
+  var danger = chain.length > 0 && dDist < 180;
+  var pulse = danger ? 1 + 0.18 * Math.sin(dpulse * 4) : 1;
+  var r = 22 * pulse;
+  // Glow
+  var grd = ctx.createRadialGradient(DX, DY, 3, DX, DY, r + 10);
+  grd.addColorStop(0, danger ? '#ff2200' : '#aa3300');
+  grd.addColorStop(0.55, danger ? '#880000' : '#440000');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(DX, DY, r + 10, 0, 6.283);
+  ctx.fillStyle = grd; ctx.fill();
+  // Core circle
+  ctx.beginPath(); ctx.arc(DX, DY, r, 0, 6.283);
+  ctx.fillStyle = danger ? '#300000' : '#200000';
+  ctx.fill();
+  if (danger) {
+    ctx.strokeStyle = 'rgba(255,60,0,' + (0.5 + 0.5 * Math.abs(Math.sin(dpulse * 4))) + ')';
+    ctx.lineWidth = 2.5; ctx.stroke();
+  }
+  // Skull emoji
+  ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('☠', DX, DY);
+}
+
+function drawShooter() {
+  // Aim guide
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(SX, SY);
+  ctx.lineTo(SX + Math.cos(angle) * 72, SY + Math.sin(angle) * 72);
+  ctx.strokeStyle = 'rgba(200,210,255,0.25)';
+  ctx.lineWidth = 1.5; ctx.setLineDash([4, 8]); ctx.stroke();
+  ctx.setLineDash([]); ctx.restore();
+
+  // Barrel
+  ctx.save();
+  ctx.translate(SX, SY); ctx.rotate(angle);
+  ctx.fillStyle = '#3a3a5a';
+  ctx.fillRect(-5, -BR - 8, 10, BR + 8);
+  ctx.strokeStyle = '#5555aa'; ctx.lineWidth = 1;
+  ctx.strokeRect(-5, -BR - 8, 10, BR + 8);
+  ctx.restore();
+
+  // Base ring
+  ctx.beginPath(); ctx.arc(SX, SY, 25, 0, 6.283);
+  var bg = ctx.createRadialGradient(SX - 9, SY - 9, 2, SX, SY, 25);
+  bg.addColorStop(0, '#3a3a60'); bg.addColorStop(1, '#111130');
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.strokeStyle = '#4455bb'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Current ball in shooter
+  drawBall(SX, SY, curC, BR - 2);
+
+  // NEXT preview
+  ctx.fillStyle = 'rgba(150,160,210,0.7)';
+  ctx.font = '10px Arial'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.fillText('NEXT', SX - 40, SY);
+  drawBall(SX - 60, SY, nxtC, 11);
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+var stars = null;
+function getStars() {
+  if (!stars) {
+    stars = [];
+    for (var i = 0; i < 80; i++)
+      stars.push({ x: Math.random()*W, y: Math.random()*H,
+                   r: Math.random()*1.3+.3, p: Math.random()*100 });
+  }
+  return stars;
+}
+
+function drawStars() {
+  getStars().forEach(function(s) {
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283);
+    var a = 0.15 + 0.2 * Math.abs(Math.sin(frame * 0.006 + s.p));
+    ctx.fillStyle = 'rgba(200,215,255,' + a + ')'; ctx.fill();
+  });
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  if (state === 'title') { renderTitle(); return; }
+
+  // Background
+  ctx.fillStyle = '#05051c'; ctx.fillRect(0, 0, W, H);
+  drawStars();
+
+  drawPath();
+  drawDrain();
+
+  // Chain balls (back to front, so front is drawn on top)
+  for (var i = 0; i < chain.length; i++) {
+    var d = frontDist - (chain.length - 1 - i) * SP;
+    if (d < 0) continue;
+    var p = pathXY(d);
+    drawBall(p.x, p.y, chain[i]);
+  }
+
+  // Danger red flash overlay
+  if (chain.length > 0 && frontDist > TLEN - 200) {
+    var t = Math.max(0, (frontDist - (TLEN - 200)) / 200);
+    ctx.fillStyle = 'rgba(255,0,0,' + (0.1 * t * Math.abs(Math.sin(dpulse * 3))) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Projectile
+  if (proj) drawBall(proj.x, proj.y, proj.color);
+
+  drawShooter();
+
+  // Flash message
+  if (flash && flashT > 0) {
+    var a = Math.min(1, flashT / 28);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.font = 'bold 34px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#ffee00'; ctx.shadowBlur = 16;
+    ctx.fillText(flash, W/2, H/2 - 55);
+    ctx.restore();
+  }
+
+  // Progress bar (danger indicator)
+  if (chain.length > 0) {
+    var pct = Math.min(1, frontDist / TLEN);
+    var barW = 200, barX = W/2 - barW/2, barY = H - 18;
+    ctx.fillStyle = '#111'; ctx.fillRect(barX, barY, barW, 6);
+    var barColor = pct > 0.85 ? '#ff3300' : pct > 0.7 ? '#ff8800' : '#44aa44';
+    ctx.fillStyle = barColor; ctx.fillRect(barX, barY, barW * pct, 6);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.strokeRect(barX, barY, barW, 6);
+    ctx.font = '9px Arial'; ctx.fillStyle = '#888';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('DANGER', barX + barW + 32, barY + 3);
+  }
+
+  if (state === 'over') renderGameOver();
+}
+
+function renderTitle() {
+  ctx.fillStyle = '#05051c'; ctx.fillRect(0, 0, W, H);
+  drawStars();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  // Title
+  ctx.font = 'bold 40px Arial';
+  ctx.fillStyle = '#ddeeff';
+  ctx.shadowColor = '#4466ff'; ctx.shadowBlur = 22;
+  ctx.fillText('🐾 どうぶつパズル', W/2, 120);
+  ctx.shadowBlur = 0;
+
+  // Sample balls
+  for (var i = 0; i < NC; i++) drawBall(W/2 - (NC-1)*21 + i*42, 195, i, 17);
+
+  ctx.font = '16px Arial'; ctx.fillStyle = '#99aadd';
+  ctx.fillText('クリック / タップで発射！', W/2, 268);
+  ctx.fillText('同じ どうぶつ を 3つ以上 並べて消そう', W/2, 300);
+  ctx.fillText('ボールが ☠ に届いたらゲームオーバー', W/2, 332);
+
+  ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#aabbff';
+  ctx.fillText('壁にバウンドして狙える！', W/2, 365);
+
+  ctx.font = 'bold 21px Arial'; ctx.fillStyle = '#ffe040';
+  ctx.globalAlpha = 0.6 + 0.4 * Math.sin(frame * 0.05);
+  ctx.fillText('タップしてスタート', W/2, 430);
+  ctx.globalAlpha = 1;
+}
+
+function renderGameOver() {
+  ctx.fillStyle = 'rgba(0,0,16,.82)'; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 52px Arial';
+  ctx.fillStyle = '#ff4444';
+  ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 26;
+  ctx.fillText('GAME OVER', W/2, 210);
+  ctx.shadowBlur = 0;
+  ctx.font = 'bold 28px Arial'; ctx.fillStyle = '#ffffff';
+  ctx.fillText('スコア: ' + score, W/2, 295);
+  ctx.fillText('レベル: ' + level, W/2, 338);
+  ctx.font = 'bold 20px Arial'; ctx.fillStyle = '#ffe040';
+  ctx.globalAlpha = 0.6 + 0.4 * Math.sin(frame * 0.05);
+  ctx.fillText('タップしてリスタート', W/2, 428);
+  ctx.globalAlpha = 1;
+}
+
+// ── MAIN LOOP ─────────────────────────────────────────────────
+function loop() {
+  frame++;
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
