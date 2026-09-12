@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>神経衰弱</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:sans-serif;background:#f5f5f5;min-height:100vh;}
+#game{padding:12px;position:relative;max-width:520px;margin:0 auto;}
+#diff{display:flex;gap:5px;justify-content:center;margin-bottom:8px;}
+#diff button{font-size:11px;padding:6px 10px;border-radius:6px;border:1px solid #aaa;background:#fff;color:#333;cursor:pointer;min-height:36px;}
+#diff button.sel{background:#8b1a1a;border-color:#8b1a1a;color:#fff;}
+#info{display:flex;gap:6px;margin-bottom:8px;}
+.stat{background:#fff;border-radius:6px;border:1px solid #ddd;padding:6px 8px;font-size:10px;color:#666;flex:1;text-align:center;line-height:1.4;}
+.stat span{font-size:18px;font-weight:600;color:#222;display:block;}
+#grid{display:grid;gap:6px;margin:0 auto;}
+.card{
+  aspect-ratio:5/7;
+  cursor:pointer;
+  border-radius:8px;
+  position:relative;
+  -webkit-tap-highlight-color:transparent;
+}
+/* 裏面：伏せ状態 */
+.card-face-back{
+  position:absolute;inset:0;
+  border-radius:8px;
+  background-color:#9b111e;
+  border:2px solid #c8a84b;
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:6%;
+  transition:opacity 0.05s;
+}
+.back-corner{font-size:clamp(7px,2vw,11px);color:#c8a84b;font-family:serif;font-weight:bold;}
+.back-corner.tl{align-self:flex-start;}
+.back-corner.br{align-self:flex-end;transform:rotate(180deg);}
+.back-sym{font-size:clamp(16px,5vw,30px);color:#c8a84b;font-family:serif;}
+
+/* スートタイル */
+.back-tiles{
+  position:absolute;inset:8px;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(4,1fr);
+  gap:1px;
+  opacity:0.45;
+}
+.back-tile{display:flex;align-items:center;justify-content:center;font-size:clamp(7px,2vw,10px);font-family:serif;}
+
+/* 内枠 */
+.back-inner-border{
+  position:absolute;inset:5px;
+  border:1px solid #c8a84b;
+  border-radius:5px;
+  opacity:0.6;
+  pointer-events:none;
+}
+
+/* 表面：めくれた状態 */
+.card-face-front{
+  position:absolute;inset:0;
+  border-radius:8px;
+  background-color:#fff;
+  border:1.5px solid #ccc;
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:6% 8%;
+  opacity:0;
+  transition:opacity 0.05s;
+}
+.face-top{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;}
+.face-bot{display:flex;flex-direction:column;align-items:flex-end;transform:rotate(180deg);line-height:1.1;}
+.face-center{display:flex;align-items:center;justify-content:center;flex:1;}
+.face-rank{font-size:clamp(10px,3vw,16px);font-weight:700;}
+.face-suit{font-size:clamp(8px,2.5vw,13px);}
+.face-big{font-size:clamp(22px,7vw,44px);line-height:1;}
+.red{color:#c0392b;}
+.blk{color:#1a1a1a;}
+
+/* めくれた */
+.card.open .card-face-back{opacity:0;}
+.card.open .card-face-front{opacity:1;}
+/* マッチ */
+.card.matched .card-face-back{opacity:0;}
+.card.matched .card-face-front{opacity:1;border-color:#4CAF50;background:#f0fff2;}
+
+#msg{text-align:center;font-size:15px;font-weight:600;color:#222;margin-top:8px;min-height:24px;}
+#ctrl{display:flex;justify-content:center;margin-top:8px;}
+#ctrl button{font-size:13px;padding:10px 28px;border-radius:6px;border:1px solid #aaa;background:#fff;color:#333;cursor:pointer;min-height:44px;}
+#fw-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="fw-canvas"></canvas>
+  <div id="diff">
+    <button onclick="setDiff('easy')" id="easy" class="sel">かんたん (6ペア)</button>
+    <button onclick="setDiff('normal')" id="normal">ふつう (10ペア)</button>
+    <button onclick="setDiff('hard')" id="hard">むずかしい (13ペア)</button>
+  </div>
+  <div id="info">
+    <div class="stat">めくった回数<span id="moves">0</span></div>
+    <div class="stat">マッチ<span id="mcount">0/0</span></div>
+    <div class="stat">タイム<span id="timer">0:00</span></div>
+  </div>
+  <div id="grid"></div>
+  <div id="msg"></div>
+  <div id="ctrl"><button onclick="startGame()">もう一度</button></div>
+</div>
+<script>
+const SUITS=[
+  {sym:'♠',cls:'blk'},
+  {sym:'♥',cls:'red'},
+  {sym:'♦',cls:'red'},
+  {sym:'♣',cls:'blk'}
+];
+const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const DIFFS={
+  easy:{pairs:6,cols:3},
+  normal:{pairs:10,cols:4},
+  hard:{pairs:13,cols:4}
+};
+const TILE_SYMS=['♠','♥','♦','♣','♣','♦','♥','♠','♠','♥','♦','♣'];
+
+let mode='easy',pairs=6,cards=[],flipped=[],matchedN=0,moves=0,lock=false,timerInt=null,secs=0,started=false;
+
+function makeBackHTML(){
+  const tiles=TILE_SYMS.map(s=>{
+    const isRed=(s==='♥'||s==='♦');
+    return `<div class="back-tile" style="color:${isRed?'#c0392b':'#8b1a1a'}">${s}</div>`;
+  }).join('');
+  return `<div class="card-face-back">
+    <div class="back-inner-border"></div>
+    <div class="back-tiles">${tiles}</div>
+    <div class="back-corner tl">♠</div>
+    <div class="back-sym">♠</div>
+    <div class="back-corner br">♠</div>
+  </div>`;
+}
+
+function makeFrontHTML(rank,suit){
+  return `<div class="card-face-front">
+    <div class="face-top">
+      <span class="face-rank ${suit.cls}">${rank}</span>
+      <span class="face-suit ${suit.cls}">${suit.sym}</span>
+    </div>
+    <div class="face-center">
+      <span class="face-big ${suit.cls}">${suit.sym}</span>
+    </div>
+    <div class="face-bot">
+      <span class="face-rank ${suit.cls}">${rank}</span>
+      <span class="face-suit ${suit.cls}">${suit.sym}</span>
+    </div>
+  </div>`;
+}
+
+function setDiff(m){
+  mode=m;
+  document.querySelectorAll('#diff button').forEach(b=>b.classList.remove('sel'));
+  document.getElementById(m).classList.add('sel');
+  startGame();
+}
+
+function startGame(){
+  clearInterval(timerInt);
+  secs=0;moves=0;matchedN=0;flipped=[];lock=false;started=false;
+  stopFireworks();
+  document.getElementById('moves').textContent='0';
+  document.getElementById('timer').textContent='0:00';
+  document.getElementById('msg').textContent='';
+  const cfg=DIFFS[mode];
+  pairs=cfg.pairs;
+  document.getElementById('mcount').textContent='0/'+pairs;
+  document.getElementById('grid').style.gridTemplateColumns='repeat('+cfg.cols+',1fr)';
+
+  let pool=[];
+  RANKS.forEach(r=>SUITS.forEach(s=>pool.push({rank:r,suit:s})));
+  pool.sort(()=>Math.random()-.5);
+  let used={};
+  for(let c of pool){
+    if(!used[c.rank])used[c.rank]=[];
+    if(used[c.rank].length<2)used[c.rank].push(c);
+    if(Object.values(used).filter(v=>v.length===2).length===pairs)break;
+  }
+  let chosen=[];
+  for(let r in used)if(used[r].length===2)chosen.push(...used[r]);
+  chosen=chosen.slice(0,pairs*2).sort(()=>Math.random()-.5);
+  cards=chosen;
+
+  const grid=document.getElementById('grid');
+  grid.innerHTML='';
+  const backHTML=makeBackHTML();
+  cards.forEach((c,i)=>{
+    const el=document.createElement('div');
+    el.className='card';
+    el.innerHTML=backHTML+makeFrontHTML(c.rank,c.suit);
+    el.addEventListener('click',()=>flip(el,i));
+    grid.appendChild(el);
+  });
+}
+
+function flip(el,idx){
+  if(lock||flipped.find(f=>f.idx===idx)||el.classList.contains('matched'))return;
+  if(!started){
+    started=true;
+    timerInt=setInterval(()=>{
+      secs++;
+      const m=Math.floor(secs/60),s=secs%60;
+      document.getElementById('timer').textContent=m+':'+(s<10?'0':'')+s;
+    },1000);
+  }
+  el.classList.add('open');
+  flipped.push({el,idx});
+  if(flipped.length===2){
+    moves++;
+    document.getElementById('moves').textContent=moves;
+    lock=true;
+    const[a,b]=flipped;
+    if(cards[a.idx].rank===cards[b.idx].rank){
+      a.el.classList.remove('open');a.el.classList.add('matched');
+      b.el.classList.remove('open');b.el.classList.add('matched');
+      matchedN++;
+      document.getElementById('mcount').textContent=matchedN+'/'+pairs;
+      flipped=[];lock=false;
+      if(matchedN===pairs){
+        clearInterval(timerInt);
+        document.getElementById('msg').textContent='クリア！ '+moves+'回・'+document.getElementById('timer').textContent+' で完成！';
+        launchFireworks();
+      }
+    } else {
+      setTimeout(()=>{
+        a.el.classList.remove('open');
+        b.el.classList.remove('open');
+        flipped=[];lock=false;
+      },900);
+    }
+  }
+}
+
+/* 花火 */
+const canvas=document.getElementById('fw-canvas');
+const ctx=canvas.getContext('2d');
+let fwParticles=[],fwRaf=null,fwActive=false,fwLaunchTimer=null;
+const FW_COLORS=['#ff4444','#ff9900','#ffdd00','#44ff88','#44ddff','#aa44ff','#ff44cc','#ffffff','#ffaa44','#88ff44'];
+
+function resizeCanvas(){
+  const g=document.getElementById('game');
+  canvas.width=g.offsetWidth;canvas.height=g.offsetHeight;
+}
+function spawnBurst(x,y){
+  const color=FW_COLORS[Math.floor(Math.random()*FW_COLORS.length)];
+  const count=55+Math.floor(Math.random()*25);
+  for(let i=0;i<count;i++){
+    const angle=(Math.PI*2*i)/count+Math.random()*.15;
+    const speed=2.5+Math.random()*3.5;
+    fwParticles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,alpha:1,size:2.5+Math.random()*2,color,trail:[],decay:.012+Math.random()*.01,gravity:.06});
+  }
+}
+function spawnRocket(){
+  if(!fwActive)return;
+  spawnBurst(canvas.width*(.15+Math.random()*.7),canvas.height*(.15+Math.random()*.5));
+}
+function animateFireworks(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  fwParticles=fwParticles.filter(p=>p.alpha>0.02);
+  for(const p of fwParticles){
+    p.trail.push({x:p.x,y:p.y,alpha:p.alpha});
+    if(p.trail.length>6)p.trail.shift();
+    for(let t=0;t<p.trail.length;t++){
+      const tp=p.trail[t];
+      ctx.globalAlpha=tp.alpha*(t/p.trail.length)*.4;
+      ctx.fillStyle=p.color;
+      ctx.beginPath();ctx.arc(tp.x,tp.y,p.size*.6,0,Math.PI*2);ctx.fill();
+    }
+    ctx.globalAlpha=p.alpha;
+    ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+    p.x+=p.vx;p.y+=p.vy;p.vy+=p.gravity;p.vx*=.97;p.vy*=.97;p.alpha-=p.decay;
+  }
+  ctx.globalAlpha=1;
+  if(fwActive||fwParticles.length>0)fwRaf=requestAnimationFrame(animateFireworks);
+  else ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+function launchFireworks(){
+  fwActive=true;resizeCanvas();
+  let count=0;spawnRocket();
+  fwLaunchTimer=setInterval(()=>{
+    spawnRocket();if(Math.random()<.4)spawnRocket();
+    count++;if(count>18){clearInterval(fwLaunchTimer);fwActive=false;}
+  },380);
+  fwRaf=requestAnimationFrame(animateFireworks);
+}
+function stopFireworks(){
+  fwActive=false;fwParticles=[];
+  if(fwLaunchTimer)clearInterval(fwLaunchTimer);
+  if(fwRaf)cancelAnimationFrame(fwRaf);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+startGame();
+</script>
+</body>
+</html>
