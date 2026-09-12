@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>射的ゲーム</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:#111;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  min-height:100vh;
+  padding:20px;
+  font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;
+}
+#game-wrap{
+  width:100%;max-width:700px;
+  background:#1a0a00;
+  border-radius:14px;
+  overflow:hidden;
+  user-select:none;
+  position:relative;
+  box-shadow:0 8px 40px rgba(0,0,0,0.7);
+}
+#score-bar{
+  background:#2d1500;
+  padding:8px 16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border-bottom:2px solid #8B4513;
+  flex-wrap:wrap;
+  gap:4px;
+}
+#score-bar span{color:#FFD700;font-size:13px;font-weight:500;}
+#score-val{font-size:20px;font-weight:bold;}
+
+/* ===== STAGE ===== */
+#stage{
+  position:relative;
+  width:100%;
+  height:420px;
+  overflow:hidden;
+  background:linear-gradient(180deg,#6B0E0E 0%,#4a0808 55%,#2d0404 100%);
+  cursor:crosshair;
+}
+/* 暖簾 */
+.curtain{
+  position:absolute;top:0;bottom:0;width:44px;
+  background:#8B0000;z-index:12;
+}
+.curtain.l{left:0;} .curtain.r{right:0;}
+.curtain::after{
+  content:'';position:absolute;top:0;bottom:0;width:10px;
+  background:#FFD700;opacity:0.45;
+}
+.curtain.l::after{left:34px;} .curtain.r::after{left:0;}
+/* ランプ */
+#lamp{
+  position:absolute;top:6px;left:50%;
+  transform:translateX(-50%);
+  display:flex;gap:18px;z-index:11;
+}
+.bulb{width:13px;height:13px;border-radius:50%;}
+
+/* 棚 (3段) */
+.shelf{
+  position:absolute;left:0;right:0;height:11px;
+  background:#A0522D;
+  box-shadow:0 5px 0 #5C2D0A;
+  z-index:6;
+}
+#shelf1{bottom:60px;}
+#shelf2{bottom:165px;}
+#shelf3{bottom:270px;}
+
+/* 景品 */
+.prize{
+  position:absolute;
+  cursor:crosshair;
+  text-align:center;
+  z-index:7;
+  transition:filter .1s;
+}
+.prize:hover{filter:brightness(1.2);}
+.prize svg,.prize canvas{display:block;margin:auto;}
+.prize .pt{
+  font-size:9px;color:#FFD700;
+  display:block;text-align:center;
+  margin-top:1px;line-height:1.1;
+  text-shadow:0 1px 2px #000;
+}
+.prize.hit{animation:hitfall .5s forwards;}
+@keyframes hitfall{
+  0%  {transform:rotate(0deg);opacity:1;}
+  35% {transform:rotate(-25deg) translateY(8px);}
+  100%{transform:rotate(-85deg) translateY(80px);opacity:0;}
+}
+.prize.miss-shake{animation:missshake .25s;}
+@keyframes missshake{
+  0%,100%{transform:translateX(0);}
+  25%{transform:translateX(-3px);}
+  75%{transform:translateX(3px);}
+}
+
+/* エフェクト */
+#hit-fx{
+  position:absolute;pointer-events:none;z-index:20;
+  border-radius:50%;width:26px;height:26px;
+  background:rgba(255,200,0,.85);
+  transform:translate(-50%,-50%) scale(0);
+}
+#hit-fx.pop{animation:popanim .38s forwards;}
+@keyframes popanim{
+  0%  {transform:translate(-50%,-50%) scale(0);opacity:1;}
+  60% {transform:translate(-50%,-50%) scale(2.4);opacity:.8;}
+  100%{transform:translate(-50%,-50%) scale(3.2);opacity:0;}
+}
+#miss-fx{
+  position:absolute;pointer-events:none;z-index:20;
+  color:#eee;font-size:12px;
+  transform:translateX(-50%);opacity:0;
+}
+#miss-fx.show{animation:missfade .65s forwards;}
+@keyframes missfade{
+  0%  {opacity:1;transform:translateX(-50%) translateY(0);}
+  100%{opacity:0;transform:translateX(-50%) translateY(-22px);}
+}
+.score-popup{
+  position:absolute;pointer-events:none;z-index:21;
+  color:#FFD700;font-size:14px;font-weight:bold;
+  transform:translateX(-50%);
+  animation:scorepop .8s forwards;
+  text-shadow:0 1px 3px #000;
+}
+@keyframes scorepop{
+  0%  {opacity:1;transform:translateX(-50%) translateY(0) scale(1);}
+  30% {transform:translateX(-50%) translateY(-14px) scale(1.3);}
+  100%{opacity:0;transform:translateX(-50%) translateY(-36px) scale(0.8);}
+}
+#aim-svg{
+  position:absolute;pointer-events:none;z-index:15;
+  left:0;top:0;width:100%;height:100%;
+}
+
+/* ===== 銃エリア ===== */
+#gun-area{
+  background:#2d1500;
+  padding:12px 18px;
+  border-top:2px solid #8B4513;
+  display:flex;align-items:center;gap:14px;
+}
+#gun-wrap{width:190px;height:72px;flex-shrink:0;}
+#gun-wrap svg{width:100%;height:100%;}
+#ctrl{flex:1;}
+.cork-row{display:flex;gap:5px;margin-bottom:7px;align-items:center;}
+.cork-row label{color:#bbb;font-size:11px;}
+.dot{
+  width:11px;height:11px;border-radius:50%;
+  background:#444;border:1px solid #666;
+  transition:background .15s;
+}
+.dot.on{background:#D2691E;border-color:#A0522D;}
+#btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+#btn-load{
+  background:#8B4513;color:#FFD700;
+  border:none;border-radius:8px;
+  padding:7px 18px;font-size:13px;
+  cursor:pointer;font-family:inherit;
+  transition:background .15s,transform .08s;
+}
+#btn-load:hover{background:#A0522D;}
+#btn-load:active{transform:scale(.97);}
+#btn-load:disabled{background:#3a3a3a;color:#666;cursor:not-allowed;}
+#hint{font-size:11px;color:#999;margin-top:5px;}
+
+/* ===== ゲームオーバー ===== */
+#overlay{
+  display:none;position:absolute;inset:0;
+  background:rgba(0,0,0,.72);z-index:60;
+  align-items:center;justify-content:center;
+}
+#overlay.show{display:flex;}
+#msg{
+  background:#2d1500;
+  border:2px solid #FFD700;
+  border-radius:14px;
+  padding:26px 36px;text-align:center;
+}
+#msg h2{color:#FFD700;font-size:22px;margin-bottom:6px;}
+#msg p{color:#ccc;font-size:13px;margin-bottom:16px;}
+#btn-restart{
+  background:#FFD700;color:#1a0a00;
+  border:none;border-radius:8px;
+  padding:9px 28px;font-size:14px;font-weight:bold;
+  cursor:pointer;font-family:inherit;
+}
+#btn-restart:hover{background:#FFC000;}
+
+/* ===== 取り扱い説明 ===== */
+#manual{
+  background:#1e0c00;
+  border-top:2px solid #5C2D0A;
+  padding:14px 20px 18px;
+}
+#manual-title{
+  color:#FFD700;
+  font-size:13px;
+  font-weight:bold;
+  letter-spacing:.05em;
+  margin-bottom:10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+#manual-title::before{
+  content:'';
+  display:inline-block;
+  width:3px;height:14px;
+  background:#FFD700;
+  border-radius:2px;
+}
+.manual-steps{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:8px;
+  margin-bottom:12px;
+}
+.step-card{
+  background:#2d1500;
+  border:1px solid #5C2D0A;
+  border-radius:8px;
+  padding:9px 10px;
+}
+.step-num{
+  font-size:10px;
+  color:#A0522D;
+  font-weight:bold;
+  margin-bottom:3px;
+  letter-spacing:.04em;
+}
+.step-icon{font-size:18px;margin-bottom:4px;}
+.step-title{
+  color:#FFD700;
+  font-size:12px;
+  font-weight:bold;
+  margin-bottom:3px;
+}
+.step-desc{
+  color:#bbb;
+  font-size:11px;
+  line-height:1.55;
+}
+.manual-notes{
+  background:#2d1500;
+  border:1px solid #5C2D0A;
+  border-radius:8px;
+  padding:9px 12px;
+  margin-bottom:10px;
+}
+.notes-title{
+  color:#FFA500;
+  font-size:11px;
+  font-weight:bold;
+  margin-bottom:6px;
+}
+.notes-list{
+  list-style:none;
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px 16px;
+}
+.notes-list li{
+  color:#bbb;
+  font-size:11px;
+  line-height:1.6;
+  padding-left:12px;
+  position:relative;
+}
+.notes-list li::before{
+  content:'・';
+  position:absolute;left:0;
+  color:#A0522D;
+}
+.prize-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:11px;
+}
+.prize-table th{
+  background:#3a1800;
+  color:#FFD700;
+  font-weight:bold;
+  padding:5px 8px;
+  text-align:center;
+  border:1px solid #5C2D0A;
+  font-size:10px;
+}
+.prize-table td{
+  color:#ccc;
+  padding:4px 8px;
+  border:1px solid #3a1800;
+  text-align:center;
+  font-size:11px;
+}
+.prize-table tr:nth-child(even) td{background:#261000;}
+.tier-label{
+  font-size:10px;
+  font-weight:bold;
+  padding:2px 6px;
+  border-radius:4px;
+  display:inline-block;
+}
+.tier1{background:#4a2000;color:#FFA07A;}
+.tier2{background:#1a2a4a;color:#87CEEB;}
+.tier3{background:#1a3a1a;color:#90EE90;}
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <div id="score-bar">
+    <span>🎯 射的ゲーム</span>
+    <span>スコア: <span id="score-val">0</span>pt</span>
+    <span>残弾: <span id="ammo-val">0</span>/<span id="ammo-max">8</span></span>
+    <span>GET: <span id="prize-val">0</span>/<span id="prize-total">0</span></span>
+  </div>
+
+  <div id="stage">
+    <div class="curtain l"></div>
+    <div class="curtain r"></div>
+    <div id="lamp"></div>
+    <svg id="aim-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="shelf" id="shelf1"></div>
+    <div class="shelf" id="shelf2"></div>
+    <div class="shelf" id="shelf3"></div>
+    <div id="hit-fx"></div>
+    <div id="miss-fx">はずれ</div>
+  </div>
+
+  <div id="gun-area">
+    <div id="gun-wrap">
+      <svg viewBox="0 0 190 72" xmlns="http://www.w3.org/2000/svg" id="gun-svg">
+        <rect x="8" y="27" width="115" height="13" rx="3" fill="#555" stroke="#333" stroke-width="1"/>
+        <rect x="14" y="22" width="5" height="9" rx="1" fill="#888"/>
+        <rect x="92" y="21" width="9" height="8" rx="1" fill="#888"/>
+        <rect x="92" y="25" width="42" height="20" rx="4" fill="#444" stroke="#333" stroke-width="1"/>
+        <path d="M112 45 Q120 58 128 45" fill="none" stroke="#555" stroke-width="2"/>
+        <line id="trig" x1="118" y1="45" x2="118" y2="54" stroke="#888" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="110" y="43" width="32" height="27" rx="5" fill="#3a3a3a" stroke="#222" stroke-width="1"/>
+        <line x1="115" y1="47" x2="115" y2="68" stroke="#555" stroke-width="0.5"/>
+        <line x1="120" y1="47" x2="120" y2="68" stroke="#555" stroke-width="0.5"/>
+        <line x1="125" y1="47" x2="125" y2="68" stroke="#555" stroke-width="0.5"/>
+        <line x1="130" y1="47" x2="130" y2="68" stroke="#555" stroke-width="0.5"/>
+        <circle id="cork-vis" cx="108" cy="33" r="5.5" fill="#D2691E" stroke="#A0522D" stroke-width="1" display="none"/>
+        <g id="flash" display="none">
+          <circle cx="8" cy="33" r="8" fill="#FFD700" opacity=".9"/>
+          <circle cx="8" cy="33" r="4" fill="white" opacity=".8"/>
+        </g>
+      </svg>
+    </div>
+    <div id="ctrl">
+      <div class="cork-row">
+        <label>装填:</label>
+        <div class="dot" id="d0"></div><div class="dot" id="d1"></div>
+        <div class="dot" id="d2"></div><div class="dot" id="d3"></div>
+        <div class="dot" id="d4"></div><div class="dot" id="d5"></div>
+        <div class="dot" id="d6"></div><div class="dot" id="d7"></div>
+      </div>
+      <div id="btn-row">
+        <button id="btn-load">🔧 コルク装填</button>
+      </div>
+      <div id="hint">景品をクリックして撃つ</div>
+    </div>
+  </div>
+
+  <!-- 取り扱い説明 -->
+  <div id="manual">
+    <div id="manual-title">取り扱い説明</div>
+
+    <div class="manual-steps">
+      <div class="step-card">
+        <div class="step-num">STEP 1</div>
+        <div class="step-icon">🔧</div>
+        <div class="step-title">コルク装填</div>
+        <div class="step-desc">「コルク装填」ボタンを押すと、コルクが1本ずつ自動で装填されます。最大8本まで入ります。装填中はカチッと音が鳴ります。</div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">STEP 2</div>
+        <div class="step-icon">🎯</div>
+        <div class="step-title">狙いを定める</div>
+        <div class="step-desc">落としたい景品にマウスカーソルを合わせます。棚は3段あり、上の段ほど高得点の景品が並んでいます。</div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">STEP 3</div>
+        <div class="step-icon">💥</div>
+        <div class="step-title">発射！</div>
+        <div class="step-desc">景品をクリックすると引き金を引いてコルクを発射します。命中すると景品が落ちてポイント獲得！はずれても弾は消費されます。</div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">STEP 4</div>
+        <div class="step-icon">🏆</div>
+        <div class="step-title">スコアを競う</div>
+        <div class="step-desc">8本のコルクを使い切るか、全景品を落とすとゲーム終了。何点取れるか挑戦してみましょう！</div>
+      </div>
+    </div>
+
+    <div class="manual-notes">
+      <div class="notes-title">⚠️ 注意事項 &amp; ポイント</div>
+      <ul class="notes-list">
+        <li>コルクが0本の状態では撃てません。先に装填してください</li>
+        <li>景品以外の場所をクリックしても空打ちになり弾を消費します</li>
+        <li>命中率は約75%。大物景品はやや当たりにくい設定です</li>
+        <li>大景品（400pt以上）を落とすとファンファーレが鳴ります</li>
+        <li>弾が残っていれば「再装填」で補充できます</li>
+        <li>ブラウザの音量設定で効果音の大きさを調整してください</li>
+      </ul>
+    </div>
+
+    <table class="prize-table">
+      <thead>
+        <tr>
+          <th>段</th>
+          <th>景品の種類</th>
+          <th>得点帯</th>
+          <th>難易度</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tier-label tier1">1段目（手前）</span></td>
+          <td>あめ玉・シール・消しゴム・ボールペン など</td>
+          <td>30〜120pt</td>
+          <td>⭐ やさしい</td>
+        </tr>
+        <tr>
+          <td><span class="tier-label tier2">2段目（中央）</span></td>
+          <td>コップ・タオル・ミニカー・お面 など</td>
+          <td>150〜300pt</td>
+          <td>⭐⭐ ふつう</td>
+        </tr>
+        <tr>
+          <td><span class="tier-label tier3">3段目（奥）</span></td>
+          <td>ぬいぐるみ・花火セット・特賞くじ など</td>
+          <td>350〜1000pt</td>
+          <td>⭐⭐⭐ むずかしい</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="overlay">
+    <div id="msg">
+      <h2>🎉 ゲーム終了！</h2>
+      <p id="msg-sub">スコア: 0pt / 景品 0個</p>
+      <button id="btn-restart">もう一度</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ===== Web Audio ===== */
+let AC = null;
+function getAC(){
+  if(!AC) AC = new (window.AudioContext||window.webkitAudioContext)();
+  if(AC.state==='suspended') AC.resume();
+  return AC;
+}
+function playTone(freq,type,dur,vol,startFreq){
+  const ac=getAC();
+  const o=ac.createOscillator();
+  const g=ac.createGain();
+  o.connect(g); g.connect(ac.destination);
+  o.type=type||'sine';
+  if(startFreq){
+    o.frequency.setValueAtTime(startFreq,ac.currentTime);
+    o.frequency.linearRampToValueAtTime(freq,ac.currentTime+dur*0.4);
+  } else {
+    o.frequency.setValueAtTime(freq,ac.currentTime);
+  }
+  g.gain.setValueAtTime(vol||0.3,ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+  o.start(ac.currentTime);
+  o.stop(ac.currentTime+dur);
+}
+function playNoise(dur,vol,filterFreq){
+  const ac=getAC();
+  const buf=ac.createBuffer(1,ac.sampleRate*dur,ac.sampleRate);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1);
+  const src=ac.createBufferSource();
+  src.buffer=buf;
+  const f=ac.createBiquadFilter();
+  f.type='bandpass';
+  f.frequency.value=filterFreq||800;
+  f.Q.value=0.8;
+  const g=ac.createGain();
+  g.gain.setValueAtTime(vol||0.4,ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start();
+}
+
+/* コルク1本装填音 */
+function sndLoad(){
+  playTone(220,'square',.08,.15);
+  setTimeout(()=>playTone(330,'square',.06,.12),60);
+}
+/* 発射音 */
+function sndFire(){
+  playNoise(.15,.5,600);
+  playTone(180,'sawtooth',.18,.2,300);
+}
+/* 命中音 */
+function sndHit(pts){
+  const base = pts>=400 ? 660 : pts>=200 ? 523 : 440;
+  playTone(base,'sine',.12,.35);
+  setTimeout(()=>playTone(base*1.5,'sine',.18,.28),80);
+  if(pts>=400){
+    setTimeout(()=>playTone(base*2,'sine',.22,.22),160);
+    setTimeout(()=>playTone(base*3,'sine',.18,.18),240);
+  }
+}
+/* 落下音 */
+function sndFall(){
+  playTone(300,'sawtooth',.25,.25,500);
+  playNoise(.2,.3,400);
+}
+/* はずれ音 */
+function sndMiss(){
+  playTone(220,'sawtooth',.15,.18,350);
+  setTimeout(()=>playTone(160,'sawtooth',.2,.12),100);
+}
+/* ゲームオーバー */
+function sndGameover(){
+  [523,494,440,392].forEach((f,i)=>{
+    setTimeout(()=>playTone(f,'sine',.3,.25),i*180);
+  });
+}
+/* 大景品ファンファーレ */
+function sndFanfare(){
+  [523,659,784,1047].forEach((f,i)=>{
+    setTimeout(()=>playTone(f,'square',.25,.2),i*120);
+  });
+}
+
+/* ===== 景品定義 (3段 × 7〜8個 = 24種) ===== */
+const ALL_PRIZES = [
+  /* 段1 (低得点・小物) */
+  {name:'あめ玉',     pts:30,  w:24, color:'#FF69B4', shape:'candy'},
+  {name:'シール',     pts:40,  w:26, color:'#87CEEB', shape:'sticker'},
+  {name:'消しゴム',   pts:50,  w:28, color:'#90EE90', shape:'eraser'},
+  {name:'ボールペン', pts:70,  w:22, color:'#4169E1', shape:'pen'},
+  {name:'メモ帳',     pts:80,  w:28, color:'#32CD32', shape:'book'},
+  {name:'キーホルダー',pts:100,w:28, color:'#FF6347', shape:'key'},
+  {name:'お菓子',     pts:120, w:30, color:'#FFA07A', shape:'snack'},
+  /* 段2 (中得点) */
+  {name:'コップ',     pts:150, w:30, color:'#20B2AA', shape:'cup'},
+  {name:'タオル',     pts:180, w:36, color:'#DDA0DD', shape:'towel'},
+  {name:'お菓子セット',pts:200,w:34, color:'#FFA500', shape:'box'},
+  {name:'文房具セット',pts:230,w:32, color:'#6495ED', shape:'pencilset'},
+  {name:'ソフビ人形', pts:260, w:32, color:'#FF7F50', shape:'doll'},
+  {name:'ミニカー',   pts:300, w:38, color:'#DC143C', shape:'car'},
+  {name:'お面',       pts:200, w:34, color:'#FFD700', shape:'mask'},
+  /* 段3 (高得点・大物) */
+  {name:'ぬいぐるみ(小)',pts:350,w:40,color:'#DDA0DD',shape:'bear'},
+  {name:'水鉄砲',     pts:400, w:44, color:'#00CED1', shape:'watergun'},
+  {name:'ぬいぐるみ(大)',pts:500,w:52,color:'#FFD700',shape:'bigbear'},
+  {name:'花火セット', pts:550, w:36, color:'#FF4500', shape:'firework'},
+  {name:'ゲームソフト',pts:600,w:38, color:'#9370DB', shape:'gamesoft'},
+  {name:'金魚すくい券',pts:700,w:42, color:'#FF4500', shape:'fish'},
+  {name:'特賞！くじ', pts:1000,w:46, color:'#FFD700', shape:'trophy'},
+];
+
+/* SVG生成 */
+function makeSvg(shape, color, w){
+  const h = w;
+  switch(shape){
+    case 'candy':
+      return `<svg width="${w}" height="${h}" viewBox="0 0 40 40"><circle cx="20" cy="22" r="13" fill="${color}"/><rect x="18" y="4" width="4" height="13" rx="2" fill="${color}"/><circle cx="20" cy="22" r="7" fill="white" opacity=".3"/><line x1="14" y1="20" x2="26" y2="24" stroke="white" stroke-width="2" opacity=".4"/></svg>`;
+    case 'sticker':
+      return `<svg width="${w}" height="${h}" viewBox="0 0 36 36"><rect x="2" y="2" width="32" height="32" rx="6" fill="${color}"/><polygon points="18,6 21,14 30,14 23,19 26,28 18,23 10,28 13,19 6,14 15,14" fill="white" opacity=".8"/></svg>`;
+    case 'eraser':
+      return `<svg width="${w}" height="${h*.6}" viewBox="0 0 40 24"><rect x="2" y="2" width="36" height="20" rx="3" fill="${color}"/><rect x="2" y="14" width="36" height="8" rx="2" fill="${color}" opacity=".6"/><text x="20" y="12" text-anchor="middle" font-size="8" fill="white" font-family="sans-serif">消</text></svg>`;
+    case 'pen':
+      return `<svg width="${w}" height="${w*2}" viewBox="0 0 22 50"><rect x="7" y="4" width="8" height="36" rx="3" fill="${color}"/><polygon points="7,40 15,40 11,50" fill="${color}"/><rect x="8" y="3" width="6" height="6" rx="2" fill="#999"/><rect x="7" y="16" width="8" height="2" fill="white" opacity=".3"/></svg>`;
+    case 'book':
+      return `<svg width="${w}" height="${w*1.2}" viewBox="0 0 36 44"><rect x="2" y="2" width="32" height="40" rx="3" fill="${color}"/><rect x="2" y="2" width="6" height="40" rx="2" fill="${color}" opacity=".6"/><rect x="12" y="10" width="16" height="2" fill="white" opacity=".5"/><rect x="12" y="16" width="14" height="2" fill="white" opacity=".5"/><rect x="12" y="22" width="15" height="2" fill="white" opacity=".5"/></svg>`;
+    case 'key':
+      return `<svg width="${w}" height="${w}" viewBox="0 0 36 36"><circle cx="13" cy="15" r="9" fill="none" stroke="${color}" stroke-width="4"/><rect x="20" y="13" width="14" height="5" rx="2" fill="${color}"/><rect x="28" y="18" width="4" height="5" rx="1" fill="${color}"/><rect x="23" y="18" width="4" height="4" rx="1" fill="${color}"/></svg>`;
+    case 'snack':
+      return `<svg width="${w}" height="${w}" viewBox="0 0 36 36"><ellipse cx="18" cy="20" rx="13" ry="12" fill="${color}"/><ellipse cx="18" cy="10" rx="10" ry="6" fill="${color}" opacity=".8"/><text x="18" y="22" text-anchor="middle" font-size="9" fill="white" font-family="sans-serif">お菓子</text></svg>`;
+    case 'cup':
+      return `<svg width="${w}" height="${w*1.1}" viewBox="0 0 36 40"><path d="M6 8 L10 36 L26 36 L30 8 Z" fill="${color}"/><rect x="4" y="6" width="28" height="5" rx="2" fill="${color}" opacity=".7"/><path d="M30 14 Q38 20 30 26" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round"/></svg>`;
+    case 'towel':
+      return `<svg width="${w}" height="${w*.7}" viewBox="0 0 44 30"><rect x="2" y="2" width="40" height="26" rx="4" fill="${color}"/><rect x="2" y="2" width="40" height="7" rx="3" fill="${color}" opacity=".7"/><line x1="8" y1="14" x2="36" y2="14" stroke="white" stroke-width="1.5" opacity=".4"/><line x1="8" y1="20" x2="36" y2="20" stroke="white" stroke-width="1.5" opacity=".4"/></svg>`;
+    case 'box':
+      return `<svg width="${w}" height="${w}" viewBox="0 0 40 40"><rect x="4" y="12" width="32" height="24" rx="2" fill="${color}"/><polygon points="4,12 20,4 36,12" fill="${color}" opacity=".8"/><rect x="18" y="12" width="4" height="24" fill="white" opacity=".3"/><line x1="4" y1="12" x2="36" y2="12" stroke="white" stroke-width="1" opacity=".4"/></svg>`;
+    case 'pencilset':
+      return `<svg width="${w}" height="${w}" viewBox="0 0 38 38"><rect x="4" y="10" width="30" height="24" rx="3" fill="${color}"/><rect x="9" y="6" width="5" height="8" rx="1" fill="#E74C3C"/><rect x="17" y="4" width="5" height="10" rx="1" fill="#27AE60"/><rect x="25" y="7" width="5" height="7" rx="1" fill="#3498DB"/></svg>`;
+    case 'doll':
+      return `<svg width="${w}" height="${w*1.2}" viewBox="0 0 36 44"><circle cx="18" cy="10" r="9" fill="${color}"/><rect x="10" y="18" width="16" height="18" rx="4" fill="${color}"/><rect x="4" y="20" width="8" height="12" rx="3" fill="${color}" opacity=".8"/><rect x="24" y="20" width="8" height="12" rx="3" fill="${color}" opacity=".8"/><rect x="12" y="34" width="5" height="8" rx="2" fill="${color}" opacity=".8"/><rect x="19" y="34" width="5" height="8" rx="2" fill="${color}" opacity=".8"/><circle cx="14" cy="9" r="2" fill="#333"/><circle cx="22" cy="9" r="2" fill="#333"/></svg>`;
+    case 'car':
+      return `<svg width="${w}" height="${w*.65}" viewBox="0 0 50 32"><rect x="4" y="14" width="42" height="14" rx="3" fill="${color}"/><path d="M10 14 L16 4 L34 4 L40 14" fill="${color}" opacity=".85"/><circle cx="13" cy="28" r="5" fill="#333"/><circle cx="13" cy="28" r="2.5" fill="#888"/><circle cx="37" cy="28" r="5" fill="#333"/><circle cx="37" cy="28" r="2.5" fill="#888"/><rect x="18" y="6" width="14" height="8" rx="1" fill="#87CEEB" opacity=".7"/></svg>`;
+    case 'mask':
+      return `<svg width="${w}" height="${w}" viewBox="0 0 40 40"><ellipse cx="20" cy="20" rx="16" ry="17" fill="${color}"/><ellipse cx="14" cy="16" rx="4" ry="5" fill="white" opacity=".8"/><ellipse cx="26" cy="16" rx="4" ry="5" fill="white" opacity=".8"/><ellipse cx="14" cy="16" rx="2" ry="2.5" fill="#333"/><ellipse cx="26" cy="16" rx="2" ry="2.5" fill="#333"/><path d="M12 28 Q20 34 28 28" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/><line x1="4" y1="16" x2="8" y2="18" stroke="${color}" opacity=".6" stroke-width="2"/><line x1="36" y1="16" x2="32" y2="18" stroke="${color}" opacity=".6" stroke-width="2"/></svg>`;
+    case 'bear':
+      return `<svg width="${w}" height="${w}" viewBox="0 0 44 44"><ellipse cx="22" cy="26" rx="14" ry="14" fill="${color}"/><circle cx="22" cy="14" r="10" fill="${color}"/><circle cx="12" cy="8" r="6" fill="${color}"/><circle cx="32" cy="8" r="6" fill="${color}"/><circle cx="12" cy="8" r="3" fill="${color}" opacity=".8"/><circle cx="32" cy="8" r="3" fill="${color}" opacity=".8"/><circle cx="18" cy="13" r="2" fill="#333"/><circle cx="26" cy="13" r="2" fill="#333"/><ellipse cx="22" cy="18" rx="4" ry="3" fill="${color}" opacity=".7"/><circle cx="22" cy="18" r="1.5" fill="#555"/></svg>`;
+    case 'watergun':
+      return `<svg width="${w}" height="${w*.75}" viewBox="0 0 50 38"><rect x="2" y="12" width="36" height="10" rx="3" fill="${color}"/><rect x="28" y="8" width="18" height="6" rx="2" fill="${color}" opacity=".85"/><rect x="18" y="22" width="14" height="12" rx="3" fill="${color}" opacity=".85"/><path d="M20 34 Q22 38 18 38" fill="none" stroke="${color}" stroke-width="2"/><circle cx="5" cy="17" r="3" fill="white" opacity=".5"/></svg>`;
+    case 'bigbear':
+      return `<svg width="${w}" height="${w}" viewBox="0 0 60 60"><ellipse cx="30" cy="38" rx="20" ry="18" fill="${color}"/><circle cx="30" cy="22" r="14" fill="${color}"/><circle cx="14" cy="12" r="9" fill="${color}"/><circle cx="46" cy="12" r="9" fill="${color}"/><circle cx="14" cy="12" r="5" fill="${color}" opacity=".75"/><circle cx="46" cy="12" r="5" fill="${color}" opacity=".75"/><circle cx="24" cy="20" r="3" fill="#333"/><circle cx="36" cy="20" r="3" fill="#333"/><ellipse cx="30" cy="26" rx="6" ry="4" fill="${color}" opacity=".7"/><circle cx="30" cy="26" r="2" fill="#555"/><ellipse cx="14" cy="44" rx="6" ry="4" fill="${color}" opacity=".6"/><ellipse cx="46" cy="44" rx="6" ry="4" fill="${color}" opacity=".6"/><text x="30" y="55" text-anchor="middle" font-size="9" fill="white" font-family="sans-serif" font-weight="bold">★BIG★</text></svg>`;
+    case 'firework':
+      return `<svg width="${w}" height="${w*1.2}" viewBox="0 0 40 48"><rect x="18" y="24" width="4" height="20" rx="2" fill="#8B6914"/><circle cx="20" cy="20" r="14" fill="${color}" opacity=".2" stroke="${color}" stroke-width="1.5"/><line x1="20" y1="6" x2="20" y2="2" stroke="${color}" stroke-width="2"/><line x1="30" y1="10" x2="33" y2="7" stroke="${color}" stroke-width="2"/><line x1="34" y1="20" x2="38" y2="20" stroke="${color}" stroke-width="2"/><line x1="10" y1="10" x2="7" y2="7" stroke="${color}" stroke-width="2"/><line x1="6" y1="20" x2="2" y2="20" stroke="${color}" stroke-width="2"/><circle cx="20" cy="20" r="7" fill="${color}"/><text x="20" y="24" text-anchor="middle" font-size="8" fill="white" font-family="sans-serif">花火</text></svg>`;
+    case 'gamesoft':
+      return `<svg width="${w}" height="${w*.75}" viewBox="0 0 44 33"><rect x="2" y="2" width="40" height="29" rx="4" fill="${color}"/><rect x="6" y="6" width="32" height="17" rx="2" fill="black" opacity=".5"/><circle cx="31" cy="22" r="3" fill="#E74C3C"/><circle cx="37" cy="22" r="3" fill="#3498DB"/><rect x="8" y="21" width="8" height="2" rx="1" fill="white" opacity=".6"/><rect x="11" y="18" width="2" height="8" rx="1" fill="white" opacity=".6"/><text x="22" y="17" text-anchor="middle" font-size="7" fill="white" font-family="sans-serif">GAME</text></svg>`;
+    case 'fish':
+      return `<svg width="${w}" height="${w*.8}" viewBox="0 0 50 40"><ellipse cx="22" cy="20" rx="16" ry="10" fill="#FF4500"/><polygon points="38,20 50,10 50,30" fill="#FF4500"/><circle cx="16" cy="17" r="3" fill="white"/><circle cx="16" cy="17" r="1.5" fill="#333"/><path d="M24 14 Q30 20 24 26" fill="none" stroke="white" stroke-width="1.5" opacity=".5"/><text x="25" y="26" font-size="7" fill="white" font-family="sans-serif">金魚</text></svg>`;
+    case 'trophy':
+      return `<svg width="${w}" height="${w*1.1}" viewBox="0 0 50 55"><rect x="16" y="44" width="18" height="6" rx="2" fill="#B8860B"/><rect x="10" y="49" width="30" height="4" rx="2" fill="#B8860B"/><path d="M10 8 L14 40 L36 40 L40 8 Z" fill="${color}"/><path d="M10 10 Q2 14 4 22 Q6 30 14 30" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"/><path d="M40 10 Q48 14 46 22 Q44 30 36 30" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"/><text x="25" y="28" text-anchor="middle" font-size="10" fill="white" font-family="sans-serif" font-weight="bold">★</text><text x="25" y="38" text-anchor="middle" font-size="7" fill="white" font-family="sans-serif">特賞</text></svg>`;
+    default:
+      return `<svg width="${w}" height="${w}" viewBox="0 0 36 36"><rect x="4" y="4" width="28" height="28" rx="4" fill="${color}"/></svg>`;
+  }
+}
+
+/* ===== ゲーム状態 ===== */
+const TOTAL_AMMO = 8;
+let score=0, ammo=0, fallenCount=0, isAnimating=false;
+let loadInterval=null, prizes=[];
+
+const stage    = document.getElementById('stage');
+const scoreEl  = document.getElementById('score-val');
+const ammoEl   = document.getElementById('ammo-val');
+const prizeEl  = document.getElementById('prize-val');
+const prizeTot = document.getElementById('prize-total');
+const btnLoad  = document.getElementById('btn-load');
+const hitFx    = document.getElementById('hit-fx');
+const missFx   = document.getElementById('miss-fx');
+const overlay  = document.getElementById('overlay');
+const msgSub   = document.getElementById('msg-sub');
+const aimSvg   = document.getElementById('aim-svg');
+
+/* ランプ */
+(function(){
+  const lamp=document.getElementById('lamp');
+  const cols=['#FFD700','#FF4500','#00FF7F','#1E90FF','#FF69B4','#FFA500'];
+  for(let i=0;i<10;i++){
+    const b=document.createElement('div');
+    b.className='bulb';
+    b.style.background=cols[i%cols.length];
+    b.style.boxShadow=`0 0 7px ${cols[i%cols.length]}`;
+    lamp.appendChild(b);
+  }
+})();
+
+/* 棚のY座標 (bottom基準 → stageH基準に変換) */
+function shelfY(shelfEl){
+  const sh = stage.offsetHeight;
+  const bot = parseInt(shelfEl.style.bottom || getComputedStyle(shelfEl).bottom);
+  return sh - bot;
+}
+
+/* 景品初期化 */
+function initPrizes(){
+  document.querySelectorAll('.prize').forEach(e=>e.remove());
+  prizes=[];
+
+  const sw = stage.offsetWidth || 700;
+  const sh = stage.offsetHeight;
+  const usableX = [46, sw-46];
+
+  /* 3段それぞれに景品を配置 */
+  const shelf1Y = sh - 60;   // bottom:60px の棚面
+  const shelf2Y = sh - 165;
+  const shelf3Y = sh - 270;
+
+  const rows = [
+    { items: ALL_PRIZES.slice(0,7),  baseY: shelf1Y },
+    { items: ALL_PRIZES.slice(7,14), baseY: shelf2Y },
+    { items: ALL_PRIZES.slice(14),   baseY: shelf3Y },
+  ];
+
+  rows.forEach(row => {
+    const total = row.items.reduce((a,p)=>a+p.w+10,0);
+    let x = usableX[0] + (usableX[1]-usableX[0]-total)/2;
+    row.items.forEach(p => {
+      const el = document.createElement('div');
+      el.className = 'prize';
+      el.innerHTML = makeSvg(p.shape, p.color, p.w) + `<span class="pt">${p.pts}pt<br>${p.name}</span>`;
+
+      // SVG高さを取得してY位置調整
+      const svgEl = el.querySelector('svg');
+      const svgH = svgEl ? parseInt(svgEl.getAttribute('height')||p.w) : p.w;
+      el.style.left = Math.max(46, Math.min(x, sw-46-p.w)) + 'px';
+      el.style.top  = (row.baseY - svgH - 2) + 'px';
+      el.dataset.pts = p.pts;
+      el.dataset.big = p.pts >= 400 ? '1' : '0';
+      stage.appendChild(el);
+      prizes.push({el, fallen:false});
+      el.addEventListener('click', onPrizeClick);
+      x += p.w + 10;
+    });
+  });
+
+  prizeTot.textContent = prizes.length;
+}
+
+/* コルクUI更新 */
+function updateDots(){
+  for(let i=0;i<8;i++){
+    const d=document.getElementById('d'+i);
+    if(d) d.className='dot'+(i<ammo?' on':'');
+  }
+  document.getElementById('cork-vis').setAttribute('display',ammo>0?'':'none');
+  ammoEl.textContent=ammo;
+}
+function updateLoadBtn(){
+  btnLoad.disabled = ammo>=TOTAL_AMMO;
+  if(ammo>=TOTAL_AMMO)     btnLoad.textContent='装填完了';
+  else if(ammo===0)        btnLoad.textContent='🔧 コルク装填';
+  else                     btnLoad.textContent=`🔧 再装填 (残${TOTAL_AMMO-ammo}本)`;
+}
+
+/* 装填ボタン */
+btnLoad.addEventListener('click',()=>{
+  if(ammo>=TOTAL_AMMO||loadInterval) return;
+  btnLoad.disabled=true;
+  btnLoad.textContent='装填中...';
+  let c=ammo;
+  loadInterval=setInterval(()=>{
+    if(c<TOTAL_AMMO){
+      c++; ammo=c;
+      sndLoad();
+      updateDots();
+    } else {
+      clearInterval(loadInterval); loadInterval=null;
+      updateLoadBtn();
+    }
+  },180);
+});
+
+/* 引き金アニメ */
+function triggerAnim(){
+  const t=document.getElementById('trig');
+  t.setAttribute('x1','120'); t.setAttribute('x2','120');
+  setTimeout(()=>{t.setAttribute('x1','118');t.setAttribute('x2','118');},130);
+}
+/* マズルフラッシュ */
+function muzzleFlash(){
+  const mf=document.getElementById('flash');
+  mf.setAttribute('display','');
+  setTimeout(()=>mf.setAttribute('display','none'),110);
+}
+/* 照準線 */
+function drawAim(tx,ty){
+  const gh=stage.offsetHeight-52;
+  aimSvg.innerHTML=`<line x1="62" y1="${gh}" x2="${tx}" y2="${ty}" stroke="rgba(255,255,120,0.45)" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+  setTimeout(()=>{aimSvg.innerHTML='';},280);
+}
+/* HIT演出 */
+function showHit(x,y){
+  hitFx.style.left=x+'px'; hitFx.style.top=y+'px';
+  hitFx.className='';
+  void hitFx.offsetWidth;
+  hitFx.className='pop';
+}
+/* MISS演出 */
+function showMiss(x,y){
+  missFx.style.left=x+'px'; missFx.style.top=y+'px';
+  missFx.className='';
+  void missFx.offsetWidth;
+  missFx.className='show';
+}
+/* スコアポップアップ */
+function showScorePop(x,y,pts){
+  const el=document.createElement('div');
+  el.className='score-popup';
+  el.style.left=x+'px'; el.style.top=y+'px';
+  el.textContent='+'+pts+'pt';
+  stage.appendChild(el);
+  setTimeout(()=>el.remove(),850);
+}
+/* ヒント */
+function setHint(msg,col){
+  const h=document.getElementById('hint');
+  h.style.color=col||'#999';
+  h.textContent=msg;
+  if(col) setTimeout(()=>{h.style.color='#999';h.textContent='景品をクリックして撃つ';},2200);
+}
+
+/* 景品クリック */
+function onPrizeClick(e){
+  const p=prizes.find(x=>x.el===e.currentTarget);
+  if(!p||p.fallen||isAnimating) return;
+  if(ammo<=0){setHint('コルクを装填してください！','#FFD700');return;}
+
+  const rect=p.el.getBoundingClientRect();
+  const sr=stage.getBoundingClientRect();
+  const cx=rect.left-sr.left+rect.width/2;
+  const cy=rect.top -sr.top +rect.height/2;
+
+  ammo--; updateDots(); updateLoadBtn();
+  triggerAnim(); muzzleFlash(); sndFire();
+  drawAim(cx,cy);
+  isAnimating=true;
+
+  const hit = Math.random() < (0.65 + (p.el.dataset.big==='1'?0:0.1));
+  setTimeout(()=>{
+    if(hit){
+      showHit(cx,cy);
+      sndHit(parseInt(p.el.dataset.pts));
+      setTimeout(()=>sndFall(),120);
+      score+=parseInt(p.el.dataset.pts);
+      scoreEl.textContent=score;
+      showScorePop(cx,cy-10,p.el.dataset.pts);
+      if(parseInt(p.el.dataset.pts)>=400) sndFanfare();
+      p.fallen=true; fallenCount++;
+      prizeEl.textContent=fallenCount;
+      p.el.classList.add('hit');
+      p.el.removeEventListener('click',onPrizeClick);
+      setTimeout(()=>{p.el.style.display='none'; isAnimating=false; checkEnd();},550);
+    } else {
+      sndMiss();
+      showMiss(cx,cy);
+      p.el.classList.add('miss-shake');
+      setTimeout(()=>p.el.classList.remove('miss-shake'),300);
+      isAnimating=false;
+      checkEnd();
+    }
+  },160);
+}
+
+/* ステージ空打ち */
+stage.addEventListener('click',function(e){
+  const tgt=e.target;
+  if(tgt===stage||tgt.classList.contains('shelf')){
+    if(ammo>0&&!isAnimating){
+      const sr=stage.getBoundingClientRect();
+      const cx=e.clientX-sr.left, cy=e.clientY-sr.top;
+      ammo--; updateDots(); updateLoadBtn();
+      triggerAnim(); muzzleFlash(); sndFire();
+      drawAim(cx,cy);
+      sndMiss();
+      showMiss(cx,cy);
+      checkEnd();
+    }
+  }
+});
+
+function checkEnd(){
+  const allFallen=prizes.every(p=>p.fallen);
+  if((ammo<=0&&!isAnimating)||allFallen){
+    setTimeout(()=>{
+      sndGameover();
+      msgSub.textContent=`スコア: ${score}pt ／ 景品 ${fallenCount}個獲得`;
+      overlay.classList.add('show');
+    }, allFallen?700:150);
+  }
+}
+
+document.getElementById('btn-restart').addEventListener('click',()=>{
+  overlay.classList.remove('show');
+  score=0; ammo=0; fallenCount=0; isAnimating=false;
+  loadInterval=null;
+  scoreEl.textContent=0;
+  prizeEl.textContent=0;
+  updateDots(); updateLoadBtn();
+  initPrizes();
+});
+
+initPrizes();
+updateDots();
+updateLoadBtn();
+})();
+</script>
+</body>
+</html>
