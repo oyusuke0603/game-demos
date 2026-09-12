@@ -1,0 +1,195 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+#game{padding:1rem 0;position:relative;}
+#diff{display:flex;gap:6px;justify-content:center;margin-bottom:.75rem;}
+#diff button{font-size:12px;padding:5px 14px;border-radius:var(--border-radius-md);border:.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-primary);cursor:pointer;}
+#diff button.sel{background:#8b1a1a;border-color:#8b1a1a;color:#fff;}
+#info{display:flex;justify-content:space-between;gap:8px;margin-bottom:1rem;}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 16px;font-size:12px;color:var(--color-text-secondary);flex:1;text-align:center;}
+.stat span{font-size:20px;font-weight:500;color:var(--color-text-primary);display:block;}
+#grid{display:grid;gap:8px;max-width:520px;margin:0 auto;}
+.card{aspect-ratio:5/7;cursor:pointer;perspective:800px;position:relative;}
+.card-inner{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .45s cubic-bezier(.4,0,.2,1);}
+.card.flipped .card-inner,.card.matched .card-inner{transform:rotateY(180deg);}
+.card-front,.card-back{position:absolute;inset:0;border-radius:8px;backface-visibility:hidden;overflow:hidden;}
+.card-back{transform:rotateY(180deg);background:#fff;border:1.5px solid #ccc;display:flex;flex-direction:column;justify-content:space-between;padding:6% 8%;}
+.card.matched .card-back{border-color:#4CAF50;background:#f6fff6;}
+.cb-top{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;}
+.cb-bot{display:flex;flex-direction:column;align-items:flex-end;transform:rotate(180deg);line-height:1.1;}
+.cb-center{display:flex;align-items:center;justify-content:center;flex:1;}
+.cb-rank{font-size:clamp(11px,3vw,16px);font-weight:700;}
+.cb-suit{font-size:clamp(10px,2.5vw,13px);}
+.cb-big{font-size:clamp(24px,6vw,46px);line-height:1;}
+.red-c{color:#c0392b;}
+.blk-c{color:#1a1a1a;}
+#msg{text-align:center;font-size:16px;font-weight:500;color:var(--color-text-primary);margin-top:.75rem;min-height:24px;}
+#controls{display:flex;gap:8px;margin-top:.75rem;justify-content:center;}
+.btn-r{font-size:14px;padding:8px 24px;border-radius:var(--border-radius-md);border:.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-primary);cursor:pointer;}
+.btn-r:hover{background:var(--color-background-secondary);}
+#fw-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;border-radius:var(--border-radius-lg);}
+</style>
+<h2 class="sr-only">神経衰弱 — トランプカードでペアを探そう</h2>
+<div id="game">
+  <canvas id="fw-canvas"></canvas>
+  <div id="diff">
+    <button onclick="setDiff('easy')" id="easy" class="sel">かんたん (6ペア)</button>
+    <button onclick="setDiff('normal')" id="normal">ふつう (10ペア)</button>
+    <button onclick="setDiff('hard')" id="hard">むずかしい (13ペア)</button>
+  </div>
+  <div id="info">
+    <div class="stat">めくった回数<span id="moves">0</span></div>
+    <div class="stat">マッチ<span id="mcount">0 / 0</span></div>
+    <div class="stat">タイム<span id="timer">0:00</span></div>
+  </div>
+  <div id="grid"></div>
+  <div id="msg"></div>
+  <div id="controls"><button class="btn-r" onclick="startGame()">もう一度</button></div>
+</div>
+
+<script>
+const SUITS=[{sym:'♠',cls:'blk-c'},{sym:'♥',cls:'red-c'},{sym:'♦',cls:'red-c'},{sym:'♣',cls:'blk-c'}];
+const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const DIFFS={easy:{pairs:6,cols:4},normal:{pairs:10,cols:5},hard:{pairs:13,cols:5}};
+let mode='easy',pairs=6,cards=[],flipped=[],matchedN=0,moves=0,lock=false,timerInt=null,secs=0,started=false;
+
+function makeFrontSVG(){
+  const syms=['♠','♥','♦','♣'];
+  let tiles='';
+  for(let row=0;row<7;row++){for(let col=0;col<5;col++){
+    const x=8+col*17,y=8+row*18,sym=syms[(row+col)%4];
+    const fill=sym==='♥'||sym==='♦'?'#c0392b':'#8b1a1a';
+    tiles+=`<text x="${x}" y="${y}" font-size="9" fill="${fill}" opacity=".55" font-family="serif" text-anchor="middle">${sym}</text>`;
+  }}
+  return `<svg width="100%" height="100%" viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="140" rx="7" fill="#9b111e"/>
+    <rect x="3" y="3" width="94" height="134" rx="5.5" fill="#7a0d18"/>
+    <rect x="5" y="5" width="90" height="130" rx="4.5" fill="#9b111e"/>
+    ${tiles}
+    <rect x="5" y="5" width="90" height="130" rx="4.5" fill="none" stroke="#c8a84b" stroke-width="1.2"/>
+    <rect x="8" y="8" width="84" height="124" rx="3" fill="none" stroke="#c8a84b" stroke-width=".5" opacity=".6"/>
+    <text x="14" y="21" font-size="8" fill="#c8a84b" font-family="serif" font-weight="bold" opacity=".85">A</text>
+    <text x="14" y="29" font-size="7" fill="#c8a84b" font-family="serif" opacity=".85">♠</text>
+    <text x="86" y="128" font-size="8" fill="#c8a84b" font-family="serif" font-weight="bold" text-anchor="middle" transform="rotate(180,86,124)" opacity=".85">A</text>
+    <text x="86" y="136" font-size="7" fill="#c8a84b" font-family="serif" text-anchor="middle" transform="rotate(180,86,132)" opacity=".85">♠</text>
+  </svg>`;
+}
+
+function makeBackHTML(rank,suit){
+  return `<div class="cb-top"><span class="cb-rank ${suit.cls}">${rank}</span><span class="cb-suit ${suit.cls}">${suit.sym}</span></div>
+<div class="cb-center"><span class="cb-big ${suit.cls}">${suit.sym}</span></div>
+<div class="cb-bot"><span class="cb-rank ${suit.cls}">${rank}</span><span class="cb-suit ${suit.cls}">${suit.sym}</span></div>`;
+}
+
+function setDiff(m){mode=m;document.querySelectorAll('#diff button').forEach(b=>b.classList.remove('sel'));document.getElementById(m).classList.add('sel');startGame();}
+
+function startGame(){
+  clearInterval(timerInt);secs=0;moves=0;matchedN=0;flipped=[];lock=false;started=false;
+  stopFireworks();
+  document.getElementById('moves').textContent='0';
+  document.getElementById('timer').textContent='0:00';
+  document.getElementById('msg').textContent='';
+  const cfg=DIFFS[mode];pairs=cfg.pairs;
+  document.getElementById('mcount').textContent='0/'+pairs;
+  document.getElementById('grid').style.gridTemplateColumns='repeat('+cfg.cols+',1fr)';
+  let pool=[];RANKS.forEach(r=>SUITS.forEach(s=>pool.push({rank:r,suit:s})));
+  pool.sort(()=>Math.random()-.5);
+  let usedRanks={};
+  for(let c of pool){if(!usedRanks[c.rank])usedRanks[c.rank]=[];if(usedRanks[c.rank].length<2)usedRanks[c.rank].push(c);if(Object.values(usedRanks).filter(v=>v.length===2).length===pairs)break;}
+  let chosen=[];for(let r in usedRanks)if(usedRanks[r].length===2)chosen.push(...usedRanks[r]);
+  chosen=chosen.slice(0,pairs*2).sort(()=>Math.random()-.5);cards=chosen;
+  const grid=document.getElementById('grid');grid.innerHTML='';
+  cards.forEach((c,i)=>{const el=document.createElement('div');el.className='card';el.innerHTML=`<div class="card-inner"><div class="card-front">${makeFrontSVG()}</div><div class="card-back">${makeBackHTML(c.rank,c.suit)}</div></div>`;el.addEventListener('click',()=>flip(el,i));grid.appendChild(el);});
+}
+
+function flip(el,idx){
+  if(lock||el.classList.contains('flipped')||el.classList.contains('matched'))return;
+  if(!started){started=true;timerInt=setInterval(()=>{secs++;const m=Math.floor(secs/60),s=secs%60;document.getElementById('timer').textContent=m+':'+(s<10?'0':'')+s;},1000);}
+  el.classList.add('flipped');flipped.push({el,idx});
+  if(flipped.length===2){
+    moves++;document.getElementById('moves').textContent=moves;lock=true;
+    const[a,b]=flipped;
+    if(cards[a.idx].rank===cards[b.idx].rank){
+      a.el.classList.add('matched');b.el.classList.add('matched');matchedN++;
+      document.getElementById('mcount').textContent=matchedN+'/'+pairs;
+      flipped=[];lock=false;
+      if(matchedN===pairs){clearInterval(timerInt);document.getElementById('msg').textContent='クリア！ '+moves+'回・'+document.getElementById('timer').textContent+' で完成！';launchFireworks();}
+    } else {setTimeout(()=>{a.el.classList.remove('flipped');b.el.classList.remove('flipped');flipped=[];lock=false;},950);}
+  }
+}
+
+const canvas=document.getElementById('fw-canvas');
+const ctx=canvas.getContext('2d');
+let fwParticles=[],fwRaf=null,fwActive=false,fwLaunchTimer=null;
+
+const FW_COLORS=['#ff4444','#ff9900','#ffdd00','#44ff88','#44ddff','#aa44ff','#ff44cc','#ffffff','#ffaa44','#88ff44'];
+
+function resizeCanvas(){
+  const g=document.getElementById('game');
+  canvas.width=g.offsetWidth;canvas.height=g.offsetHeight;
+}
+
+function spawnBurst(x,y){
+  const color=FW_COLORS[Math.floor(Math.random()*FW_COLORS.length)];
+  const count=55+Math.floor(Math.random()*25);
+  for(let i=0;i<count;i++){
+    const angle=(Math.PI*2*i)/count+Math.random()*.15;
+    const speed=2.5+Math.random()*3.5;
+    fwParticles.push({
+      x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,
+      alpha:1,size:2.5+Math.random()*2,color,
+      trail:[],decay:.012+Math.random()*.01,
+      gravity:.06
+    });
+  }
+}
+
+function spawnRocket(){
+  if(!fwActive)return;
+  const x=canvas.width*(.15+Math.random()*.7);
+  const y=canvas.height*(.15+Math.random()*.5);
+  spawnBurst(x,y);
+}
+
+function animateFireworks(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  fwParticles=fwParticles.filter(p=>p.alpha>0.02);
+  for(const p of fwParticles){
+    p.trail.push({x:p.x,y:p.y,alpha:p.alpha});
+    if(p.trail.length>6)p.trail.shift();
+    for(let t=0;t<p.trail.length;t++){
+      const tp=p.trail[t];
+      const ta=tp.alpha*(t/p.trail.length)*.4;
+      ctx.globalAlpha=ta;
+      ctx.fillStyle=p.color;
+      ctx.beginPath();ctx.arc(tp.x,tp.y,p.size*.6,0,Math.PI*2);ctx.fill();
+    }
+    ctx.globalAlpha=p.alpha;
+    ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+    p.x+=p.vx;p.y+=p.vy;p.vy+=p.gravity;p.vx*=.97;p.vy*=.97;p.alpha-=p.decay;
+  }
+  ctx.globalAlpha=1;
+  if(fwActive||fwParticles.length>0)fwRaf=requestAnimationFrame(animateFireworks);
+  else ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+function launchFireworks(){
+  fwActive=true;resizeCanvas();
+  let count=0;
+  spawnRocket();
+  fwLaunchTimer=setInterval(()=>{
+    spawnRocket();if(Math.random()<.4)spawnRocket();
+    count++;if(count>18){clearInterval(fwLaunchTimer);fwActive=false;}
+  },380);
+  fwRaf=requestAnimationFrame(animateFireworks);
+}
+
+function stopFireworks(){
+  fwActive=false;fwParticles=[];
+  if(fwLaunchTimer)clearInterval(fwLaunchTimer);
+  if(fwRaf)cancelAnimationFrame(fwRaf);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+startGame();
+</script>
