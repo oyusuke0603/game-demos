@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>おはじきゲーム vs CPU</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: radial-gradient(ellipse at top, #1b2a3a 0%, #0d151f 60%, #060c12 100%);
+  min-height: 100vh;
+  font-family: 'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;
+  color: #ddeeff;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+h1 {
+  text-align: center;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 0.9rem 0 0.2rem;
+  color: #90c8f0;
+  text-shadow: 0 0 24px rgba(80,160,240,0.35);
+}
+
+/* ---- Score bar ---- */
+.score-bar {
+  display: flex;
+  align-items: stretch;
+  max-width: 640px;
+  margin: 0.5rem auto 0.4rem;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(100,160,220,0.2);
+}
+
+.score-side {
+  flex: 1;
+  padding: 0.45rem 1rem;
+  text-align: center;
+}
+
+.score-side.player { background: rgba(30,60,120,0.55); }
+.score-side.cpu    { background: rgba(120,30,40,0.55); }
+
+.score-side .name {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  opacity: 0.75;
+  margin-bottom: 2px;
+}
+
+.score-side .pts {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.score-side.player .pts { color: #7dd3f8; }
+.score-side.cpu    .pts { color: #f87171; }
+
+.score-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.9rem;
+  background: rgba(255,255,255,0.04);
+  font-size: 0.65rem;
+  color: #889aaa;
+  letter-spacing: 0.08em;
+  gap: 2px;
+}
+
+.score-mid .turn-num { font-size: 1rem; font-weight: 600; color: #aac8e0; }
+
+/* ---- Board ---- */
+#game-board {
+  position: relative;
+  width: 90vw;
+  max-width: 630px;
+  height: 410px;
+  margin: 0 auto 0.5rem;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: crosshair;
+  border: 2px solid rgba(100,160,220,0.22);
+  box-shadow: 0 0 50px rgba(40,120,220,0.10), inset 0 0 70px rgba(0,0,0,0.5);
+  background: radial-gradient(ellipse at center, #162030 0%, #0a1420 100%);
+}
+
+/* territory lines */
+#game-board::before {
+  content:'';
+  position: absolute;
+  left: 50%;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent 0%, rgba(140,180,255,0.18) 30%, rgba(140,180,255,0.18) 70%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+#game-board::after {
+  content:'';
+  position:absolute;
+  inset:0;
+  background:
+    repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(100,160,220,0.04) 39px,rgba(100,160,220,0.04) 40px),
+    repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(100,160,220,0.04) 39px,rgba(100,160,220,0.04) 40px);
+  pointer-events:none;
+  border-radius:18px;
+}
+
+.territory-label {
+  position: absolute;
+  top: 8px;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  opacity: 0.4;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.territory-label.player { left: 12px; color: #7dd3f8; }
+.territory-label.cpu    { right: 12px; color: #f87171; }
+
+/* ---- Pieces ---- */
+.ohajiki {
+  position: absolute;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  z-index: 5;
+}
+
+.ohajiki.player-piece:hover { transform: scale(1.1); }
+.ohajiki.selected {
+  transform: scale(1.18);
+  z-index: 10;
+  box-shadow: 0 0 0 3px rgba(120,200,255,0.7), 0 4px 14px rgba(0,0,0,0.6) !important;
+}
+
+.ohajiki.flying { pointer-events:none; transition:none; z-index:20; }
+
+/* ---- Aim ---- */
+#aim-svg {
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:15;
+}
+
+/* ---- Particles ---- */
+.particle {
+  position:absolute;
+  border-radius:50%;
+  pointer-events:none;
+  animation: spark 0.55s ease-out forwards;
+}
+
+@keyframes spark {
+  0%   { opacity:1; transform:scale(1) translate(0,0); }
+  100% { opacity:0; transform:scale(0.1) translate(var(--tx),var(--ty)); }
+}
+
+.ripple {
+  position:absolute;
+  border-radius:50%;
+  pointer-events:none;
+  animation: rOut 0.4s ease-out forwards;
+}
+
+@keyframes rOut {
+  0%   { opacity:0.8; transform:scale(0.4); }
+  100% { opacity:0;   transform:scale(2.6); }
+}
+
+/* ---- Out-of-board flash ---- */
+.out-flash {
+  position:absolute;
+  border-radius:50%;
+  pointer-events:none;
+  animation: outFlash 0.4s ease-out forwards;
+}
+
+@keyframes outFlash {
+  0%   { opacity:1; transform:scale(1.5); }
+  100% { opacity:0; transform:scale(3); }
+}
+
+/* ---- Message ---- */
+#message {
+  text-align:center;
+  min-height:1.5rem;
+  font-size:0.88rem;
+  color:#88b8d8;
+  letter-spacing:0.05em;
+  padding:0.1rem 1rem 0.3rem;
+}
+
+#turn-banner {
+  text-align:center;
+  font-size:1.05rem;
+  font-weight:700;
+  letter-spacing:0.12em;
+  min-height:1.8rem;
+  margin-bottom:0.1rem;
+  transition: color 0.3s;
+}
+
+#turn-banner.player-turn { color:#7dd3f8; }
+#turn-banner.cpu-turn    { color:#f87171; }
+
+/* ---- Buttons ---- */
+.btn-row {
+  display:flex;
+  justify-content:center;
+  gap:0.8rem;
+  padding:0.3rem 1rem 0.6rem;
+  flex-wrap:wrap;
+}
+
+button {
+  padding:0.5rem 1.3rem;
+  border-radius:50px;
+  border:1.5px solid rgba(100,160,220,0.3);
+  background:rgba(20,50,90,0.7);
+  color:#90c8f0;
+  font-size:0.85rem;
+  font-family:inherit;
+  letter-spacing:0.05em;
+  cursor:pointer;
+  transition:background 0.15s, transform 0.1s;
+}
+
+button:hover { background:rgba(30,70,130,0.9); transform:translateY(-1px); }
+button:active { transform:scale(0.97); }
+
+button.primary {
+  background:linear-gradient(135deg, #1a5090, #0e3060);
+  border-color:rgba(120,190,255,0.45);
+  font-weight:700;
+  font-size:0.95rem;
+}
+
+button.danger {
+  background:rgba(80,20,20,0.7);
+  border-color:rgba(220,80,80,0.35);
+  color:#f8a0a0;
+}
+
+/* ---- Vol row ---- */
+#vol-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:0.5rem; font-size:0.75rem; color:#556677; margin-bottom:0.3rem;
+}
+
+#vol-row input { width:70px; accent-color:#4488aa; }
+
+/* ---- Result popup ---- */
+#result-popup {
+  position:fixed; top:50%; left:50%;
+  transform:translate(-50%,-50%) scale(0.5);
+  background:rgba(10,25,50,0.96);
+  border:2px solid rgba(100,160,240,0.4);
+  border-radius:22px;
+  padding:2rem 2.5rem;
+  text-align:center;
+  z-index:200;
+  opacity:0;
+  pointer-events:none;
+  transition:all 0.3s ease;
+  min-width:260px;
+}
+
+#result-popup.show {
+  opacity:1; pointer-events:auto;
+  transform:translate(-50%,-50%) scale(1);
+}
+
+#result-popup .result-title { font-size:2rem; margin-bottom:0.5rem; }
+#result-popup .result-detail { font-size:0.88rem; color:#7899aa; margin-bottom:0.4rem; }
+#result-popup .score-compare {
+  display:flex; justify-content:center; gap:1.5rem;
+  margin:0.8rem 0 1rem;
+}
+
+#result-popup .sc-block { text-align:center; }
+#result-popup .sc-block .sc-name { font-size:0.7rem; color:#556677; }
+#result-popup .sc-block .sc-val { font-size:1.6rem; font-weight:700; }
+#result-popup .sc-block.player .sc-val { color:#7dd3f8; }
+#result-popup .sc-block.cpu    .sc-val { color:#f87171; }
+
+/* ---- CPU thinking overlay ---- */
+#cpu-thinking {
+  display:none;
+  position:absolute;
+  inset:0;
+  z-index:50;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+}
+
+#cpu-thinking.active { display:flex; }
+
+.think-dot {
+  width:10px; height:10px; border-radius:50%;
+  background:#f87171;
+  margin:0 4px;
+  animation: bounce 0.6s infinite alternate;
+}
+
+.think-dot:nth-child(2) { animation-delay:0.15s; }
+.think-dot:nth-child(3) { animation-delay:0.3s; }
+
+@keyframes bounce {
+  from { transform:translateY(0) scale(1); opacity:0.5; }
+  to   { transform:translateY(-14px) scale(1.2); opacity:1; }
+}
+
+/* ---- Rules panel ---- */
+#rules-panel {
+  max-width: 640px;
+  margin: 0 auto 0.7rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(100,160,220,0.18);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+#rules-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  color: #7aaecc;
+  font-size: 0.82rem;
+  font-family: inherit;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: 0;
+}
+
+#rules-toggle:hover { background: rgba(100,160,220,0.07); transform: none; }
+
+#rules-toggle .arrow {
+  font-size: 0.7rem;
+  transition: transform 0.25s;
+  display: inline-block;
+}
+
+#rules-toggle.open .arrow { transform: rotate(180deg); }
+
+#rules-body {
+  display: none;
+  padding: 0 1rem 0.8rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1.2rem;
+}
+
+#rules-body.open {
+  display: grid;
+}
+
+.rule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #99b8cc;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(100,160,220,0.08);
+}
+
+.rule-item:last-child { border-bottom: none; }
+
+.rule-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.rule-item strong {
+  color: #b8d8ee;
+  display: block;
+  font-size: 0.8rem;
+  margin-bottom: 1px;
+}
+
+/* difficulty badge */
+.diff-badge {
+  display:inline-block;
+  font-size:0.7rem;
+  padding:2px 10px;
+  border-radius:20px;
+  margin-left:6px;
+  vertical-align:middle;
+}
+
+.diff-badge.easy   { background:rgba(80,200,80,0.2); color:#80e890; border:1px solid rgba(80,200,80,0.3); }
+.diff-badge.normal { background:rgba(80,150,220,0.2); color:#80c0f8; border:1px solid rgba(80,150,220,0.3); }
+.diff-badge.hard   { background:rgba(220,80,60,0.2); color:#f89080; border:1px solid rgba(220,80,60,0.3); }
+</style>
+</head>
+<body>
+
+<h1>🔮 おはじきゲーム <span id="diff-badge-h" class="diff-badge normal">ふつう</span></h1>
+
+<div class="score-bar">
+  <div class="score-side player">
+    <div class="name">👤 あなた</div>
+    <div class="pts" id="player-score">0</div>
+  </div>
+  <div class="score-mid">
+    <span>ターン</span>
+    <span class="turn-num" id="turn-num">1</span>
+  </div>
+  <div class="score-side cpu">
+    <div class="name">🤖 CPU</div>
+    <div class="pts" id="cpu-score">0</div>
+  </div>
+</div>
+
+<div id="turn-banner" class="player-turn">あなたのターン</div>
+
+<div id="game-board">
+  <svg id="aim-svg" width="100%" height="100%"></svg>
+  <div id="cpu-thinking">
+    <div class="think-dot"></div>
+    <div class="think-dot"></div>
+    <div class="think-dot"></div>
+  </div>
+  <span class="territory-label player">自陣</span>
+  <span class="territory-label cpu">敵陣</span>
+</div>
+
+<div id="message">スタートボタンでゲーム開始！</div>
+
+<div id="rules-panel">
+  <button id="rules-toggle" onclick="toggleRules(this)">
+    📖 遊び方・ルール
+    <span class="arrow">▼</span>
+  </button>
+  <div id="rules-body">
+    <div class="rule-item">
+      <span class="rule-icon">🎯</span>
+      <div><strong>目的</strong>自分の青いおはじきで、相手（CPU）の赤いおはじきを<b style="color:#f8c0c0">敵陣（右半分）</b>に押し込もう。多く入れた方が勝ち！</div>
+    </div>
+    <div class="rule-item">
+      <span class="rule-icon">👆</span>
+      <div><strong>操作方法</strong>①青いおはじきをクリックして選択 → ②弾きたい方向をクリック。点線がエイムガイドになるよ！</div>
+    </div>
+    <div class="rule-item">
+      <span class="rule-icon">📍</span>
+      <div><strong>陣地</strong>盤面の<b style="color:#7dd3f8">左半分＝自陣</b>・<b style="color:#f87171">右半分＝敵陣</b>。中央の白い線が境界線。</div>
+    </div>
+    <div class="rule-item">
+      <span class="rule-icon">🏆</span>
+      <div><strong>得点</strong>相手のおはじきを自陣に入れると1個につき1点。16ターン終了時に得点が多い方が勝ち！</div>
+    </div>
+    <div class="rule-item">
+      <span class="rule-icon">🔄</span>
+      <div><strong>ターン交代</strong>あなたが1回弾いたら次はCPUのターン。交互に繰り返す（全16ターン）。</div>
+    </div>
+    <div class="rule-item">
+      <span class="rule-icon">🤖</span>
+      <div><strong>CPU難易度</strong><b style="color:#80e890">かんたん</b>＝狙いがブレる。<b style="color:#80c0f8">ふつう</b>＝普通の精度。<b style="color:#f89080">むずかしい</b>＝精密に狙ってくる！</div>
+    </div>
+  </div>
+</div>
+
+<div id="vol-row">
+  🔊 <input type="range" id="vol" min="0" max="1" step="0.05" value="0.5">
+  <select id="difficulty" style="background:#0a1420;color:#88aac0;border:1px solid rgba(100,160,220,0.3);border-radius:8px;padding:2px 6px;font-size:0.75rem;font-family:inherit;">
+    <option value="easy">かんたん</option>
+    <option value="normal" selected>ふつう</option>
+    <option value="hard">むずかしい</option>
+  </select>
+  <button onclick="toggleSound()" style="padding:2px 10px;font-size:0.75rem;">🔔</button>
+</div>
+
+<div class="btn-row">
+  <button class="primary" onclick="startGame()">🎮 スタート</button>
+  <button onclick="startGame()">🔄 リセット</button>
+</div>
+
+<div id="result-popup">
+  <div class="result-title" id="result-title">🎉</div>
+  <div class="result-detail" id="result-detail"></div>
+  <div class="score-compare">
+    <div class="sc-block player">
+      <div class="sc-name">あなた</div>
+      <div class="sc-val" id="r-player-score">0</div>
+    </div>
+    <div class="sc-block cpu">
+      <div class="sc-name">CPU</div>
+      <div class="sc-val" id="r-cpu-score">0</div>
+    </div>
+  </div>
+  <button class="primary" onclick="closeResult();startGame();">もう一度</button>
+</div>
+
+<script>
+/* ===================== AUDIO ===================== */
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+let vol = 0.5, soundOn = true;
+document.getElementById('vol').addEventListener('input', e => vol = +e.target.value);
+
+function resumeAC() { if (AC.state === 'suspended') AC.resume(); }
+
+function tone(freq, type='sine', dur=0.15, gain=0.35) {
+  if (!soundOn) return;
+  resumeAC();
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, AC.currentTime);
+  g.gain.setValueAtTime(gain * vol, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(); o.stop(AC.currentTime + dur);
+}
+
+const sfx = {
+  select:  () => tone(660,'sine',0.09,0.28),
+  flick:   () => { tone(300,'triangle',0.18,0.5); setTimeout(()=>tone(240,'triangle',0.12,0.3),60); },
+  cpuFlick:() => { tone(200,'sawtooth',0.2,0.4); setTimeout(()=>tone(160,'sawtooth',0.12,0.3),70); },
+  hit:     () => { tone(190,'sawtooth',0.2,0.5); tone(270,'sine',0.14,0.28); },
+  score:   () => [600,800,1000].forEach((f,i)=>setTimeout(()=>tone(f,'sine',0.18,0.38),i*80)),
+  out:     () => { tone(130,'sawtooth',0.35,0.5); setTimeout(()=>tone(100,'sawtooth',0.25,0.4),80); },
+  win:     () => [800,1000,1200,1000,1200].forEach((f,i)=>setTimeout(()=>tone(f,'sine',0.2,0.4),i*90)),
+  lose:    () => [400,320,260,200].forEach((f,i)=>setTimeout(()=>tone(f,'sawtooth',0.22,0.38),i*100)),
+};
+
+function toggleSound() { soundOn = !soundOn; showMsg(soundOn ? '🔔 音声ON' : '🔕 音声OFF'); }
+
+function toggleRules(btn) {
+  btn.classList.toggle('open');
+  document.getElementById('rules-body').classList.toggle('open');
+}
+
+/* ===================== CONFIG ===================== */
+const R   = 21;
+const TURN_LIMIT = 16; // total turns per game
+
+const PLAYER_COLORS = ['#38bdf8','#818cf8','#2dd4bf','#60a5fa','#a78bfa']; // blue/purple hues
+const CPU_COLORS    = ['#f87171','#fb923c','#f472b6','#facc15','#f43f5e']; // red/warm hues
+
+/* ===================== STATE ===================== */
+const board = document.getElementById('game-board');
+const aimSvg = document.getElementById('aim-svg');
+const BW = () => board.clientWidth;
+const BH = () => board.clientHeight;
+
+let pieces = [];      // all pieces on board
+let selected = null;
+let animating = false;
+let aimActive = false;
+
+let currentTurn = 'player'; // 'player' | 'cpu'
+let turnCount = 1;
+let playerScore = 0;
+let cpuScore = 0;
+
+let difficulty = 'normal';
+document.getElementById('difficulty').addEventListener('change', e => {
+  difficulty = e.target.value;
+  const badge = document.getElementById('diff-badge-h');
+  const labels = { easy:'かんたん', normal:'ふつう', hard:'むずかしい' };
+  badge.textContent = labels[difficulty];
+  badge.className = `diff-badge ${difficulty}`;
+});
+
+/* ===================== PIECE CREATION ===================== */
+function makePiece(x, y, owner) {
+  const el = document.createElement('div');
+  el.className = 'ohajiki ' + (owner === 'player' ? 'player-piece' : 'cpu-piece');
+  const baseColor = owner === 'player'
+    ? PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)]
+    : CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
+
+  const size = R * 2;
+  // Lighter spot for gloss
+  const light = owner === 'player' ? '#b8e8ff' : '#ffb8b8';
+  el.style.cssText = `
+    width:${size}px; height:${size}px;
+    left:${x-R}px; top:${y-R}px;
+    background: radial-gradient(circle at 36% 30%, ${light}, ${baseColor} 50%, #111);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.6), inset 0 1px 3px rgba(255,255,255,0.25);
+    border: 1.5px solid rgba(255,255,255,0.12);
+  `;
+
+  if (owner === 'player') {
+    el.addEventListener('click', () => onPlayerPieceClick(p));
+  }
+
+  board.appendChild(el);
+  const p = { el, x, y, vx:0, vy:0, owner, baseColor, id: Math.random() };
+  return p;
+}
+
+/* ===================== GAME START ===================== */
+function startGame() {
+  pieces.forEach(p => p.el.remove());
+  pieces = [];
+  selected = null;
+  animating = false;
+  aimActive = false;
+  currentTurn = 'player';
+  turnCount = 1;
+  playerScore = 0;
+  cpuScore = 0;
+  closeResult();
+  updateUI();
+
+  const margin = R + 14;
+  const halfW = BW() / 2;
+
+  // Player pieces on LEFT half
+  for (let i = 0; i < 5; i++) {
+    const x = margin + Math.random() * (halfW - margin - R - 20);
+    const y = margin + Math.random() * (BH() - margin * 2);
+    pieces.push(makePiece(x, y, 'player'));
+  }
+
+  // CPU pieces on RIGHT half
+  for (let i = 0; i < 5; i++) {
+    const x = halfW + R + 20 + Math.random() * (halfW - margin - R - 20);
+    const y = margin + Math.random() * (BH() - margin * 2);
+    pieces.push(makePiece(x, y, 'cpu'));
+  }
+
+  setTurnBanner('player');
+  showMsg('あなたのおはじきをクリックして選択しよう！');
+}
+
+/* ===================== UI ===================== */
+function updateUI() {
+  document.getElementById('player-score').textContent = playerScore;
+  document.getElementById('cpu-score').textContent = cpuScore;
+  document.getElementById('turn-num').textContent = turnCount;
+}
+
+function showMsg(txt) { document.getElementById('message').textContent = txt; }
+
+function setTurnBanner(who) {
+  const el = document.getElementById('turn-banner');
+  if (who === 'player') {
+    el.textContent = '👤 あなたのターン';
+    el.className = 'player-turn';
+  } else {
+    el.textContent = '🤖 CPUのターン...';
+    el.className = 'cpu-turn';
+  }
+}
+
+/* ===================== PLAYER INPUT ===================== */
+function onPlayerPieceClick(p) {
+  if (animating || currentTurn !== 'player') return;
+  if (p.owner !== 'player') return;
+  if (selected === p) { deselect(); return; }
+  if (selected) deselect();
+  selected = p;
+  p.el.classList.add('selected');
+  sfx.select();
+  aimActive = true;
+  showMsg('盤面をクリックして弾く方向を決めよう！');
+}
+
+function deselect() {
+  if (selected) { selected.el.classList.remove('selected'); selected = null; }
+  aimActive = false;
+  clearAim();
+}
+
+board.addEventListener('mousemove', e => {
+  if (!aimActive || !selected) return;
+  const r = board.getBoundingClientRect();
+  drawAim(selected.x, selected.y, e.clientX - r.left, e.clientY - r.top, '#7dd3f8');
+});
+
+board.addEventListener('mouseleave', () => { if (aimActive) clearAim(); });
+
+board.addEventListener('click', e => {
+  if (!selected || animating || currentTurn !== 'player') return;
+  const r = board.getBoundingClientRect();
+  const tx = e.clientX - r.left, ty = e.clientY - r.top;
+
+  // Don't fire if clicking own piece
+  for (const p of pieces) {
+    if (p === selected) continue;
+    const dx = p.x - tx, dy = p.y - ty;
+    if (Math.sqrt(dx*dx+dy*dy) < R) return;
+  }
+
+  const dx = tx - selected.x, dy = ty - selected.y;
+  const dist = Math.sqrt(dx*dx+dy*dy);
+  if (dist < 5) { deselect(); return; }
+
+  const speed = Math.min(20, 5 + dist * 0.065);
+  const pieceToFlick = selected;
+  deselect();
+  flickPiece(pieceToFlick, (dx/dist)*speed, (dy/dist)*speed, 'player');
+});
+
+/* ===================== AIM LINE ===================== */
+function drawAim(x1, y1, x2, y2, color='#7dd3f8') {
+  const dx = x2-x1, dy = y2-y1;
+  const dist = Math.sqrt(dx*dx+dy*dy);
+  if (dist < 5) { clearAim(); return; }
+  const nx = dx/dist, ny = dy/dist;
+  let dots = '';
+  for (let i = 1; i <= 12; i++) {
+    const px = x1 + nx*i*17, py = y1 + ny*i*17;
+    const r = Math.max(1.5, 4.5 - i*0.25);
+    const op = Math.max(0.05, 1 - i*0.08);
+    dots += `<circle cx="${px}" cy="${py}" r="${r}" fill="${color}" opacity="${op}"/>`;
+  }
+  aimSvg.innerHTML = dots;
+}
+
+function clearAim() { aimSvg.innerHTML = ''; }
+
+/* ===================== PHYSICS ===================== */
+function flickPiece(p, vx, vy, flickerOwner) {
+  animating = true;
+  p.vx = vx; p.vy = vy;
+  p.el.classList.add('flying');
+  flickerOwner === 'player' ? sfx.flick() : sfx.cpuFlick();
+  runPhysics(flickerOwner);
+}
+
+function runPhysics(flickerOwner) {
+  const friction = 0.965;
+  let frame = 0;
+
+  function step() {
+    let moving = false;
+
+    for (const p of pieces) {
+      if (Math.abs(p.vx) < 0.04 && Math.abs(p.vy) < 0.04) { p.vx=0; p.vy=0; continue; }
+      moving = true;
+      p.vx *= friction; p.vy *= friction;
+      p.x += p.vx; p.y += p.vy;
+
+      // Wall bounce
+      if (p.x - R < 0)       { p.x = R;        p.vx =  Math.abs(p.vx)*0.72; }
+      if (p.x + R > BW())    { p.x = BW()-R;   p.vx = -Math.abs(p.vx)*0.72; }
+      if (p.y - R < 0)       { p.y = R;        p.vy =  Math.abs(p.vy)*0.72; }
+      if (p.y + R > BH())    { p.y = BH()-R;   p.vy = -Math.abs(p.vy)*0.72; }
+
+      p.el.style.left = (p.x-R)+'px';
+      p.el.style.top  = (p.y-R)+'px';
+    }
+
+    // Collisions
+    for (let i = 0; i < pieces.length; i++)
+      for (let j = i+1; j < pieces.length; j++)
+        collide(pieces[i], pieces[j]);
+
+    frame++;
+    if (moving && frame < 350) {
+      requestAnimationFrame(step);
+    } else {
+      pieces.forEach(p => p.el.classList.remove('flying'));
+      afterPhysics(flickerOwner);
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function collide(a, b) {
+  const dx = b.x-a.x, dy = b.y-a.y;
+  const dist = Math.sqrt(dx*dx+dy*dy);
+  if (dist >= R*2 || dist===0) return;
+
+  sfx.hit();
+  rippleAt((a.x+b.x)/2, (a.y+b.y)/2, b.owner);
+  sparkAt(b.x, b.y, b.owner);
+
+  const nx = dx/dist, ny = dy/dist;
+  const overlap = R*2 - dist;
+  a.x -= nx*overlap/2; a.y -= ny*overlap/2;
+  b.x += nx*overlap/2; b.y += ny*overlap/2;
+
+  const dvx = a.vx-b.vx, dvy = a.vy-b.vy;
+  const dot  = dvx*nx + dvy*ny;
+  const e    = 0.85;
+  a.vx -= dot*nx*e; a.vy -= dot*ny*e;
+  b.vx += dot*nx*e; b.vy += dot*ny*e;
+}
+
+/* ===================== AFTER PHYSICS ===================== */
+function afterPhysics(flickerOwner) {
+  // Score: pieces that crossed into opponent's side
+  let pGained = 0, cGained = 0;
+
+  // Player pieces that are now on CPU's side (x > BW/2)
+  // CPU pieces that are now on player's side (x < BW/2)
+  for (const p of pieces) {
+    if (p.owner === 'player' && p.x > BW()/2) {
+      pGained += 1;
+    }
+    if (p.owner === 'cpu' && p.x < BW()/2) {
+      cGained += 1;
+    }
+  }
+
+  playerScore += pGained;
+  cpuScore    += cGained;
+
+  if (pGained > 0 || cGained > 0) sfx.score();
+
+  let msg = '';
+  if (flickerOwner === 'player') {
+    if (pGained > 0) msg = `✨ ${pGained}個、敵陣に侵入！ +${pGained}点`;
+    else             msg = '...惜しい！次のターンへ。';
+  } else {
+    if (cGained > 0) msg = `😤 CPUが${cGained}個こちらに入れてきた！ CPU +${cGained}点`;
+    else             msg = 'CPUは失敗。あなたのターン！';
+  }
+
+  updateUI();
+  showMsg(msg);
+
+  // Check win conditions
+  const playerPiecesLeft = pieces.filter(p => p.owner==='player').length;
+  const cpuPiecesLeft    = pieces.filter(p => p.owner==='cpu').length;
+
+  turnCount++;
+  updateUI();
+
+  if (playerPiecesLeft === 0 || cpuPiecesLeft === 0 || turnCount > TURN_LIMIT) {
+    setTimeout(() => endGame(), 900);
+    return;
+  }
+
+  // Next turn
+  animating = false;
+  if (flickerOwner === 'player') {
+    currentTurn = 'cpu';
+    setTurnBanner('cpu');
+    setTimeout(() => doCpuTurn(), 900);
+  } else {
+    currentTurn = 'player';
+    setTurnBanner('player');
+    showMsg('あなたのおはじきをクリックして選択しよう！');
+  }
+}
+
+/* ===================== CPU AI ===================== */
+function doCpuTurn() {
+  showCpuThinking(true);
+  showMsg('CPUが考えています...');
+
+  const thinkTime = difficulty === 'easy' ? 600 : difficulty === 'hard' ? 1400 : 1000;
+
+  setTimeout(() => {
+    showCpuThinking(false);
+    const move = calcCpuMove();
+    if (!move) { afterPhysics('cpu'); return; }
+
+    // Visualise aim briefly
+    drawAim(move.piece.x, move.piece.y,
+      move.piece.x + move.vx * 30,
+      move.piece.y + move.vy * 30,
+      '#f87171');
+
+    setTimeout(() => {
+      clearAim();
+      flickPiece(move.piece, move.vx, move.vy, 'cpu');
+    }, 380);
+
+  }, thinkTime);
+}
+
+function showCpuThinking(on) {
+  const el = document.getElementById('cpu-thinking');
+  on ? el.classList.add('active') : el.classList.remove('active');
+}
+
+function calcCpuMove() {
+  const cpuPieces = pieces.filter(p => p.owner === 'cpu');
+  if (cpuPieces.length === 0) return null;
+
+  const playerPieces = pieces.filter(p => p.owner === 'player');
+
+  // Difficulty tweaks
+  const noiseLevel = difficulty === 'easy' ? 0.6 : difficulty === 'hard' ? 0.05 : 0.25;
+  const speedBase  = difficulty === 'hard' ? 16 : difficulty === 'easy' ? 10 : 13;
+
+  let best = null;
+  let bestScore = -Infinity;
+
+  for (const cp of cpuPieces) {
+    for (const pp of playerPieces) {
+      // Aim slightly past target for better hit
+      const dx = pp.x - cp.x, dy = pp.y - cp.y;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if (dist < 1) continue;
+
+      const nx = dx/dist, ny = dy/dist;
+      // Score: closer target & target closer to player's baseline (left side) = better
+      const targetVal = (BW() - pp.x) * 0.01 + (1/(dist+1)) * 80;
+
+      if (targetVal > bestScore) {
+        bestScore = targetVal;
+        best = { piece: cp, nx, ny, dist };
+      }
+    }
+  }
+
+  if (!best) {
+    // No player pieces? just push toward center
+    const cp = cpuPieces[Math.floor(Math.random() * cpuPieces.length)];
+    const nx = -1, ny = (Math.random()-0.5)*0.4;
+    return { piece:cp, vx: nx*speedBase, vy: ny*speedBase };
+  }
+
+  // Add noise
+  const angleNoise = (Math.random()-0.5) * noiseLevel;
+  const cos = Math.cos(angleNoise), sin = Math.sin(angleNoise);
+  const nx2 =  best.nx*cos - best.ny*sin;
+  const ny2 =  best.nx*sin + best.ny*cos;
+
+  const speed = speedBase + (Math.random()-0.5)*3;
+  return { piece: best.piece, vx: nx2*speed, vy: ny2*speed };
+}
+
+/* ===================== EFFECTS ===================== */
+function rippleAt(x, y, owner) {
+  const d = document.createElement('div');
+  d.className = 'ripple';
+  const c = owner==='player' ? 'rgba(120,210,255,0.6)' : 'rgba(255,120,120,0.6)';
+  d.style.cssText = `width:${R*2}px;height:${R*2}px;left:${x-R}px;top:${y-R}px;border:2px solid ${c};`;
+  board.appendChild(d);
+  setTimeout(()=>d.remove(), 420);
+}
+
+function sparkAt(x, y, owner) {
+  const baseC = owner==='player' ? '#60c8f8' : '#f87070';
+  for (let i=0;i<8;i++) {
+    const s = document.createElement('div');
+    s.className='particle';
+    const ang = Math.random()*Math.PI*2;
+    const d = 18+Math.random()*38;
+    s.style.cssText=`
+      width:${3+Math.random()*5}px;height:${3+Math.random()*5}px;
+      left:${x}px;top:${y}px;
+      background:${baseC};
+      --tx:${Math.cos(ang)*d}px;--ty:${Math.sin(ang)*d}px;`;
+    board.appendChild(s);
+    setTimeout(()=>s.remove(),560);
+  }
+}
+
+/* ===================== END GAME ===================== */
+function endGame() {
+  animating = false;
+  sfx.out();
+
+  const popup = document.getElementById('result-popup');
+  document.getElementById('r-player-score').textContent = playerScore;
+  document.getElementById('r-cpu-score').textContent = cpuScore;
+
+  let title, detail;
+  if (playerScore > cpuScore) {
+    title = '🏆 あなたの勝ち！';
+    detail = `${playerScore} 対 ${cpuScore} — 見事な勝利！`;
+    sfx.win();
+  } else if (cpuScore > playerScore) {
+    title = '😭 CPUの勝ち…';
+    detail = `${playerScore} 対 ${cpuScore} — 次は頑張ろう！`;
+    sfx.lose();
+  } else {
+    title = '🤝 引き分け！';
+    detail = `${playerScore} 対 ${cpuScore} — 互角の戦いでした！`;
+  }
+
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-detail').textContent = detail;
+
+  setTimeout(() => popup.classList.add('show'), 200);
+}
+
+function closeResult() {
+  document.getElementById('result-popup').classList.remove('show');
+}
+
+window.addEventListener('load', () => {
+  // Don't auto-start; wait for button
+  showMsg('スタートボタンでゲーム開始！');
+});
+</script>
+</body>
+</html>
