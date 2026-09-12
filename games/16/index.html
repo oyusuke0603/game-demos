@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>エアホッケー</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600&display=swap');
+
+  :root {
+    --neon-blue: #00d4ff;
+    --neon-pink: #ff006e;
+    --neon-yellow: #ffe600;
+    --dark-bg: #050a14;
+    --table-bg: #071a2e;
+    --grid-color: rgba(0, 212, 255, 0.08);
+    --glow-blue: 0 0 20px #00d4ff, 0 0 40px rgba(0,212,255,0.4);
+    --glow-pink: 0 0 20px #ff006e, 0 0 40px rgba(255,0,110,0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark-bg);
+    font-family: 'Orbitron', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* 背景グリッド */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  #scoreboard {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    margin-bottom: 18px;
+    z-index: 10;
+  }
+
+  .player-score {
+    text-align: center;
+  }
+
+  .player-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    margin-bottom: 4px;
+  }
+
+  .player-label.blue { color: var(--neon-blue); text-shadow: var(--glow-blue); }
+  .player-label.pink { color: var(--neon-pink); text-shadow: var(--glow-pink); }
+
+  .score {
+    font-size: 52px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .score.blue {
+    color: var(--neon-blue);
+    text-shadow: var(--glow-blue);
+  }
+
+  .score.pink {
+    color: var(--neon-pink);
+    text-shadow: var(--glow-pink);
+  }
+
+  .divider {
+    font-size: 36px;
+    color: rgba(255,255,255,0.2);
+    font-weight: 900;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 2px rgba(0,212,255,0.3),
+      0 0 60px rgba(0,212,255,0.15),
+      0 0 120px rgba(0,212,255,0.08);
+  }
+
+  canvas {
+    display: block;
+    cursor: none;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5, 10, 20, 0.85);
+    backdrop-filter: blur(6px);
+    z-index: 20;
+    transition: opacity 0.3s;
+  }
+
+  #overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #overlay h1 {
+    font-size: 42px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+  }
+
+  #overlay .subtitle {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 4px;
+    margin-bottom: 40px;
+  }
+
+  #start-btn {
+    background: transparent;
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 14px 48px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: var(--glow-blue);
+    border-radius: 4px;
+  }
+
+  #start-btn:hover {
+    background: var(--neon-blue);
+    color: var(--dark-bg);
+    box-shadow: 0 0 40px #00d4ff, 0 0 80px rgba(0,212,255,0.5);
+  }
+
+  #win-msg {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 20px var(--neon-yellow);
+  }
+
+  #info-bar {
+    display: flex;
+    gap: 24px;
+    margin-top: 14px;
+    z-index: 10;
+  }
+
+  .info-item {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.04);
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .info-item span {
+    color: rgba(255,255,255,0.6);
+  }
+</style>
+</head>
+<body>
+
+<div id="scoreboard">
+  <div class="player-score">
+    <div class="player-label blue">▲ PLAYER</div>
+    <div class="score blue" id="score-player">0</div>
+  </div>
+  <div class="divider">:</div>
+  <div class="player-score">
+    <div class="player-label pink">CPU ▼</div>
+    <div class="score pink" id="score-cpu">0</div>
+  </div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+  <div id="overlay">
+    <div id="win-msg" style="display:none"></div>
+    <h1>AIR HOCKEY</h1>
+    <div class="subtitle">エアホッケー</div>
+    <button id="start-btn">START GAME</button>
+  </div>
+</div>
+
+<div id="info-bar">
+  <div class="info-item">マウス / タッチ で <span>パドル操作</span></div>
+  <div class="info-item">先取 <span>7点</span> で勝利</div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('start-btn');
+const winMsg = document.getElementById('win-msg');
+const scorePlayerEl = document.getElementById('score-player');
+const scoreCpuEl = document.getElementById('score-cpu');
+
+// ---- レスポンシブサイズ ----
+const W = Math.min(480, window.innerWidth - 20);
+const H = W * 1.6;
+canvas.width = W;
+canvas.height = H;
+
+// ---- AudioContext ----
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playHit(freq = 300, type = 'triangle', vol = 0.25, duration = 0.12) {
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, ac.currentTime + duration);
+    gain.gain.setValueAtTime(vol, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.start();
+    osc.stop(ac.currentTime + duration);
+  } catch(e){}
+}
+
+function playGoal() {
+  try {
+    const ac = getAudio();
+    // 得点音：上昇アルペジオ
+    [440, 550, 660, 880].forEach((f, i) => {
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.3, ac.currentTime + i * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + i * 0.1 + 0.3);
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      osc.start(ac.currentTime + i * 0.1);
+      osc.stop(ac.currentTime + i * 0.1 + 0.35);
+    });
+  } catch(e){}
+}
+
+function playWall() {
+  playHit(180, 'sawtooth', 0.15, 0.08);
+}
+
+function playPaddle(speed) {
+  const f = 250 + Math.min(speed * 8, 300);
+  playHit(f, 'triangle', 0.3, 0.1);
+}
+
+// ---- ゲーム定数 ----
+const PADDLE_R = W * 0.085;
+const PUCK_R   = W * 0.055;
+const GOAL_W   = W * 0.44;
+const GOAL_X   = (W - GOAL_W) / 2;
+const WIN_SCORE = 7;
+
+// ---- ゲーム状態 ----
+let puck, playerPaddle, cpuPaddle;
+let scorePlayer = 0, scoreCpu = 0;
+let gameRunning = false;
+let goalAnim = 0; // 得点エフェクト用タイマー
+let goalColor = '#00d4ff';
+let goalLock = false; // 連続ゴール防止フラグ
+let waitingReset = false; // リセット待ち中フラグ
+
+// CPU難易度（時間とともに上昇）
+let cpuSpeed = 0;
+let gameTime = 0;
+
+function initGame() {
+  puck = {
+    x: W / 2, y: H / 2,
+    vx: (Math.random() > 0.5 ? 1 : -1) * W * 0.007,
+    vy: (Math.random() > 0.5 ? 1 : -1) * H * 0.01,
+    r: PUCK_R
+  };
+  playerPaddle = { x: W / 2, y: H * 0.82, r: PADDLE_R, tx: W/2, ty: H*0.82 };
+  cpuPaddle    = { x: W / 2, y: H * 0.18, r: PADDLE_R };
+  cpuSpeed = H * 0.007;
+  gameTime = 0;
+  goalLock = false;
+  waitingReset = false;
+}
+
+// ---- マウス / タッチ ----
+let mouseX = W / 2, mouseY = H * 0.82;
+
+function getPos(e, rect) {
+  if (e.touches) {
+    return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+  }
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = e.clientX - r.left;
+  mouseY = e.clientY - r.top;
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  const p = getPos(e, r);
+  mouseX = p.x; mouseY = p.y;
+}, { passive: false });
+
+// ---- 衝突 ----
+function circlePush(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const minDist = a.r + b.r;
+  if (dist < minDist && dist > 0.01) {
+    return { hit: true, nx: dx/dist, ny: dy/dist, overlap: minDist - dist };
+  }
+  return { hit: false };
+}
+
+function resolveHit(paddle, speed) {
+  playPaddle(speed);
+  // パドルの速度を加味
+  const dx = puck.x - paddle.x, dy = puck.y - paddle.y;
+  const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+  const nx = dx/dist, ny = dy/dist;
+  const speed2 = Math.sqrt(puck.vx**2 + puck.vy**2);
+  const boost = Math.max(speed2, H * 0.01);
+  puck.vx = nx * boost * 1.15 + (paddle.pvx || 0) * 0.5;
+  puck.vy = ny * boost * 1.15 + (paddle.pvy || 0) * 0.5;
+  // 速度上限
+  const maxV = H * 0.022;
+  const mag = Math.sqrt(puck.vx**2 + puck.vy**2);
+  if (mag > maxV) { puck.vx = puck.vx/mag*maxV; puck.vy = puck.vy/mag*maxV; }
+  // 重なり解消
+  puck.x = paddle.x + nx * (paddle.r + puck.r + 1);
+  puck.y = paddle.y + ny * (paddle.r + puck.r + 1);
+}
+
+function update() {
+  if (!gameRunning) return;
+  gameTime++;
+
+  // CPU速度を時間で少しずつ強化
+  cpuSpeed = H * (0.007 + Math.min(gameTime / 18000, 0.006));
+
+  // === プレイヤーパドル移動（マウス追従、下半分制限）===
+  const prevPX = playerPaddle.x, prevPY = playerPaddle.y;
+  const targetX = Math.max(PADDLE_R, Math.min(W - PADDLE_R, mouseX));
+  const targetY = Math.max(H/2 + PADDLE_R, Math.min(H - PADDLE_R, mouseY));
+  playerPaddle.x += (targetX - playerPaddle.x) * 0.35;
+  playerPaddle.y += (targetY - playerPaddle.y) * 0.35;
+  playerPaddle.pvx = playerPaddle.x - prevPX;
+  playerPaddle.pvy = playerPaddle.y - prevPY;
+
+  // === CPU AI ===
+  const prevCX = cpuPaddle.x, prevCY = cpuPaddle.y;
+  // パックが上半分に来ていて自分側に向かっているとき追う
+  let cpuTargetX = cpuPaddle.x;
+  let cpuTargetY = cpuPaddle.y;
+  if (puck.y < H/2 && puck.vy < 0) {
+    // 予測位置
+    const predict = Math.max(0.1, Math.abs((puck.y - cpuPaddle.y) / (puck.vy || 0.01)));
+    cpuTargetX = Math.max(PADDLE_R, Math.min(W - PADDLE_R, puck.x + puck.vx * predict * 0.5));
+    cpuTargetY = H * 0.18;
+  } else {
+    // ゴール守備
+    cpuTargetX = W / 2;
+    cpuTargetY = H * 0.18;
+  }
+  const dxC = cpuTargetX - cpuPaddle.x, dyC = cpuTargetY - cpuPaddle.y;
+  const distC = Math.sqrt(dxC**2 + dyC**2);
+  if (distC > 1) {
+    const step = Math.min(cpuSpeed, distC);
+    cpuPaddle.x += dxC/distC * step;
+    cpuPaddle.y += dyC/distC * step;
+  }
+  cpuPaddle.pvx = cpuPaddle.x - prevCX;
+  cpuPaddle.pvy = cpuPaddle.y - prevCY;
+
+  // === パック移動 ===
+  puck.x += puck.vx;
+  puck.y += puck.vy;
+
+  // 摩擦（わずかに）
+  puck.vx *= 0.999;
+  puck.vy *= 0.999;
+
+  // 壁反射（左右）
+  if (puck.x - puck.r < 0) {
+    puck.x = puck.r;
+    puck.vx = Math.abs(puck.vx);
+    playWall();
+  }
+  if (puck.x + puck.r > W) {
+    puck.x = W - puck.r;
+    puck.vx = -Math.abs(puck.vx);
+    playWall();
+  }
+
+  // ゴール判定 & 上下壁反射
+  // 上（CPUゴール）
+  if (puck.y - puck.r < 0 && !goalLock) {
+    if (puck.x > GOAL_X && puck.x < GOAL_X + GOAL_W) {
+      // プレイヤー得点
+      goalLock = true;
+      scorePlayer++;
+      scorePlayerEl.textContent = scorePlayer;
+      goalAnim = 80;
+      goalColor = '#00d4ff';
+      playGoal();
+      // パックを即座に見えない位置へ退避
+      puck.vx = 0; puck.vy = 0;
+      puck.x = W/2; puck.y = H/2;
+      if (scorePlayer >= WIN_SCORE) { endGame('PLAYER WIN!', '#00d4ff'); return; }
+      resetPuck(1);
+    } else {
+      puck.y = puck.r;
+      puck.vy = Math.abs(puck.vy);
+      playWall();
+    }
+  }
+  // 下（プレイヤーゴール）
+  if (puck.y + puck.r > H && !goalLock) {
+    if (puck.x > GOAL_X && puck.x < GOAL_X + GOAL_W) {
+      // CPU得点
+      goalLock = true;
+      scoreCpu++;
+      scoreCpuEl.textContent = scoreCpu;
+      goalAnim = 80;
+      goalColor = '#ff006e';
+      playGoal();
+      // パックを即座に見えない位置へ退避
+      puck.vx = 0; puck.vy = 0;
+      puck.x = W/2; puck.y = H/2;
+      if (scoreCpu >= WIN_SCORE) { endGame('CPU WIN...', '#ff006e'); return; }
+      resetPuck(-1);
+    } else {
+      puck.y = H - puck.r;
+      puck.vy = -Math.abs(puck.vy);
+      playWall();
+    }
+  }
+
+  // パドル衝突
+  const ph = circlePush(playerPaddle, puck);
+  if (ph.hit) {
+    const speed = Math.sqrt(playerPaddle.pvx**2 + playerPaddle.pvy**2);
+    resolveHit(playerPaddle, speed);
+  }
+  const ch = circlePush(cpuPaddle, puck);
+  if (ch.hit) {
+    const speed = Math.sqrt(cpuPaddle.pvx**2 + cpuPaddle.pvy**2);
+    resolveHit(cpuPaddle, speed);
+  }
+
+  if (goalAnim > 0) goalAnim--;
+}
+
+function resetPuck(dir) {
+  waitingReset = true;
+  setTimeout(() => {
+    puck.x = W/2; puck.y = H/2;
+    puck.vx = (Math.random() > 0.5 ? 1 : -1) * W * 0.007;
+    puck.vy = dir * H * 0.01;
+    goalLock = false;
+    waitingReset = false;
+  }, 900);
+}
+
+function endGame(msg, color) {
+  gameRunning = false;
+  winMsg.textContent = msg;
+  winMsg.style.color = color;
+  winMsg.style.textShadow = `0 0 20px ${color}`;
+  winMsg.style.display = 'block';
+  startBtn.textContent = 'PLAY AGAIN';
+  overlay.classList.remove('hidden');
+}
+
+// ---- 描画 ----
+function drawTable() {
+  // テーブル背景
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#071a30');
+  bg.addColorStop(0.5, '#08202e');
+  bg.addColorStop(1, '#071a30');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // ゴール（上：CPU側）
+  ctx.fillStyle = 'rgba(255,0,110,0.12)';
+  ctx.strokeStyle = 'rgba(255,0,110,0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(GOAL_X, 0, GOAL_W, 8, [0,0,6,6]);
+  ctx.fill();
+  ctx.stroke();
+
+  // ゴール（下：プレイヤー側）
+  ctx.fillStyle = 'rgba(0,212,255,0.12)';
+  ctx.strokeStyle = 'rgba(0,212,255,0.6)';
+  ctx.beginPath();
+  ctx.roundRect(GOAL_X, H-8, GOAL_W, 8, [6,6,0,0]);
+  ctx.fill();
+  ctx.stroke();
+
+  // センターライン
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([8, 10]);
+  ctx.beginPath();
+  ctx.moveTo(10, H/2);
+  ctx.lineTo(W-10, H/2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // センターサークル
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(W/2, H/2, W*0.16, 0, Math.PI*2);
+  ctx.stroke();
+
+  // ゴールエフェクト
+  if (goalAnim > 0) {
+    const alpha = goalAnim / 80;
+    ctx.fillStyle = goalColor.replace(')', `, ${alpha * 0.15})`).replace('rgb', 'rgba').replace('#00d4ff', 'rgba(0,212,255,').replace('#ff006e', 'rgba(255,0,110,');
+    // 簡易フラッシュ
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.12;
+    ctx.fillStyle = goalColor;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+}
+
+function drawPaddle(p, color, glow) {
+  ctx.save();
+  // グロー
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 20;
+  // 外リング
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  // 内部
+  const grad = ctx.createRadialGradient(p.x - p.r*0.3, p.y - p.r*0.3, 2, p.x, p.y, p.r);
+  grad.addColorStop(0, color + '55');
+  grad.addColorStop(1, color + '11');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  // 中心ドット
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.r * 0.22, 0, Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.shadowBlur = 30;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPuck() {
+  const speed = Math.sqrt(puck.vx**2 + puck.vy**2);
+  const glowR = 8 + speed * 2;
+
+  ctx.save();
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur = glowR;
+  // 本体
+  const grad = ctx.createRadialGradient(puck.x - puck.r*0.3, puck.y - puck.r*0.3, 1, puck.x, puck.y, puck.r);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.6, '#ccddee');
+  grad.addColorStop(1, '#889aaa');
+  ctx.beginPath();
+  ctx.arc(puck.x, puck.y, puck.r, 0, Math.PI*2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+
+  // モーションブラー（速度が高いとき）
+  if (speed > H * 0.008) {
+    const steps = 4;
+    for (let i = 1; i <= steps; i++) {
+      ctx.save();
+      ctx.globalAlpha = 0.06 * (steps - i + 1);
+      ctx.beginPath();
+      ctx.arc(puck.x - puck.vx * i * 0.7, puck.y - puck.vy * i * 0.7, puck.r * (1 - i*0.12), 0, Math.PI*2);
+      ctx.fillStyle = '#aabbcc';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  drawTable();
+  drawPaddle(cpuPaddle, '#ff006e');
+  drawPaddle(playerPaddle, '#00d4ff');
+  drawPuck();
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ---- ボタン ----
+startBtn.addEventListener('click', () => {
+  getAudio(); // ユーザーインタラクションでAudioContext起動
+  scorePlayer = 0; scoreCpu = 0;
+  scorePlayerEl.textContent = '0';
+  scoreCpuEl.textContent = '0';
+  winMsg.style.display = 'none';
+  startBtn.textContent = 'START GAME';
+  initGame();
+  gameRunning = true;
+  overlay.classList.add('hidden');
+});
+
+// ---- スタート ----
+initGame();
+draw();
+loop();
+</script>
+</body>
+</html>
