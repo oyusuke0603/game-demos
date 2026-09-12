@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>お祭り輪投げゲーム</title>
+<style>
+  body{
+    margin:0; padding:0;
+    background:linear-gradient(#1a0f2e,#3a1f4d 60%, #1a0f2e);
+    font-family:"Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+    color:#fff;
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  h1{
+    margin:14px 0 4px 0;
+    color:#ffd34d;
+    text-shadow:2px 2px 0 #b3001b, 0 0 12px #ff8c00;
+    letter-spacing:4px;
+    font-size:26px;
+  }
+  #wrap{
+    position:relative;
+    width:700px;
+    max-width:96vw;
+  }
+  #board{
+    background:#2d1b3d;
+    border:6px solid #b3001b;
+    border-radius:10px;
+    box-shadow:0 0 25px rgba(255,140,0,.5);
+    display:block;
+    margin:0 auto;
+  }
+  #lanterns{
+    display:flex; justify-content:space-around;
+    width:700px; max-width:96vw;
+    margin-bottom:-6px;
+  }
+  .lantern{
+    width:34px;height:44px;
+    background:radial-gradient(circle, #ff8c00, #b3001b);
+    border-radius:50% 50% 45% 45%;
+    border:2px solid #ffd34d;
+    box-shadow:0 0 10px #ff8c00;
+  }
+  #panel{
+    width:700px; max-width:96vw;
+    background:rgba(0,0,0,.35);
+    border:2px solid #ffd34d44;
+    border-radius:10px;
+    margin-top:10px;
+    padding:12px 16px;
+    box-sizing:border-box;
+  }
+  .row{ display:flex; align-items:center; gap:10px; margin:8px 0; flex-wrap:wrap; }
+  #prizeList{ display:flex; gap:8px; flex-wrap:wrap; }
+  .prizeBtn{
+    background:#fff3d6; color:#3a1f4d; border:2px solid #ffd34d;
+    border-radius:8px; padding:6px 10px; cursor:pointer;
+    font-size:13px; font-weight:bold; transition:.15s;
+  }
+  .prizeBtn:hover{ transform:translateY(-2px); }
+  .prizeBtn.selected{ background:#ff8c00; color:#fff; border-color:#fff; }
+  .gaugeBox{
+    width:100%; height:26px; background:#1a0f2e;
+    border:2px solid #ffd34d; border-radius:6px;
+    position:relative; overflow:hidden;
+  }
+  .gaugeFill{
+    position:absolute; top:0; left:0; height:100%;
+    background:linear-gradient(90deg,#ff8c00,#ffd34d);
+  }
+  .gaugeMark{
+    position:absolute; top:0; width:6px; height:100%;
+    background:#00e5ff; box-shadow:0 0 6px #00e5ff;
+  }
+  .gaugeCursor{
+    position:absolute; top:0; width:3px; height:100%;
+    background:#fff;
+  }
+  button.action{
+    background:#b3001b; color:#fff; border:none; border-radius:8px;
+    padding:10px 22px; font-size:16px; font-weight:bold; cursor:pointer;
+    box-shadow:0 3px 0 #6e0011;
+  }
+  button.action:disabled{ background:#555; box-shadow:none; cursor:default; }
+  button.small{
+    background:#444; color:#fff; border:none; border-radius:6px;
+    padding:6px 12px; cursor:pointer; font-size:13px;
+  }
+  #status{ font-size:14px; min-height:20px; color:#ffd34d; }
+  #scoreBoard{ font-size:15px; }
+  #scoreBoard b{ color:#ffd34d; font-size:18px; }
+  #resultLog{ font-size:12px; opacity:.85; min-height:18px;}
+  #overlay{
+    position:absolute; inset:0; background:rgba(0,0,0,.75);
+    display:none; align-items:center; justify-content:center; flex-direction:column;
+    border-radius:6px; text-align:center;
+  }
+  #overlay h2{ color:#ffd34d; font-size:28px; }
+  #overlay p{ font-size:14px; }
+</style>
+</head>
+<body>
+
+<h1>🎏 お祭り輪投げゲーム 🎏</h1>
+<div id="lanterns"></div>
+
+<div id="wrap">
+  <canvas id="board" width="700" height="260"></canvas>
+  <div id="overlay">
+    <h2>結果発表</h2>
+    <p id="resultText"></p>
+    <button class="action" id="retryBtn">もう一度遊ぶ</button>
+  </div>
+</div>
+
+<div id="panel">
+  <div class="row">
+    <span>🎵 BGM再生中...</span>
+    <div style="flex:1"></div>
+    <div id="scoreBoard">スコア: <b id="scoreVal">0</b> 点　/　残り輪: <b id="ringVal">10</b> 個</div>
+  </div>
+
+  <div class="row" style="font-weight:bold;color:#ffd34d;">① 景品を選ぶ</div>
+  <div class="row" id="prizeList"></div>
+
+  <div class="row" style="font-weight:bold;color:#ffd34d;">② 威力ゲージ（クリックで停止）</div>
+  <div class="row" style="width:100%;">
+    <div class="gaugeBox" id="powerGauge" style="width:100%;">
+      <div class="gaugeFill" id="powerFill" style="width:0%;"></div>
+      <div class="gaugeMark" id="powerMark"></div>
+    </div>
+  </div>
+
+  <div class="row" style="font-weight:bold;color:#ffd34d;">③ 方向ゲージ（クリックで停止）</div>
+  <div class="row" style="width:100%;">
+    <div class="gaugeBox" id="aimGauge" style="width:100%;">
+      <div class="gaugeCursor" id="aimCursor" style="left:50%;"></div>
+      <div class="gaugeMark" id="aimMark"></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="action" id="mainBtn">威力ゲージ開始</button>
+    <div id="status"></div>
+  </div>
+  <div id="resultLog"></div>
+</div>
+
+<script>
+// ====== 基本データ ======
+var canvas = document.getElementById('board');
+var ctx = canvas.getContext('2d');
+var W = canvas.width, H = canvas.height;
+var THROW_X = W/2, THROW_Y = H - 18;
+
+var prizes = [
+  {name:"ぬいぐるみ", pt:1,  x:120, y:150, r:34, color:"#ffb6c1"},
+  {name:"お菓子セット", pt:2, x:240, y:120, r:28, color:"#ffe066"},
+  {name:"スーパーボール", pt:3, x:360, y:140, r:22, color:"#74d3ff"},
+  {name:"フィギュア", pt:5,  x:470, y:110, r:17, color:"#b388ff"},
+  {name:"レア限定グッズ", pt:10, x:580, y:135, r:12, color:"#ff6b6b"}
+];
+
+var ringR = 9;
+var score = 0;
+var ringsLeft = 10;
+var selectedPrize = null;
+var gotItems = [];
+var gameOver = false;
+
+// ゲージ用パラメータ
+var stage = 0; // 0:選択待ち 1:威力ゲージ中 2:方向ゲージ中 3:投擲アニメ中
+var powerVal = 0, powerDir = 1, powerTimer = null, powerLocked = null;
+var aimVal = 0, aimDir = 1, aimTimer = null, aimLocked = null;
+
+// 当たり判定用：ゲージ→着地点
+function powerToY(p){ return 60 + (p/100)*150; } // 60〜210
+function aimToX(a){ return THROW_X + a*2.9; }     // -100〜100 → 端から端
+
+// ====== ランタン描画(装飾) ======
+(function(){
+  var box = document.getElementById('lanterns');
+  for(var i=0;i<8;i++){
+    var d = document.createElement('div');
+    d.className='lantern';
+    box.appendChild(d);
+  }
+})();
+
+// ====== 音声システム（共有AudioContext） ======
+var actx = null;
+function getCtx(){
+  if(!actx){ actx = new (window.AudioContext||window.webkitAudioContext)(); }
+  return actx;
+}
+function tone(freq, start, dur, type, vol){
+  var c = getCtx();
+  var osc = c.createOscillator();
+  var gain = c.createGain();
+  osc.type = type||"sine";
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, c.currentTime+start);
+  gain.gain.linearRampToValueAtTime(vol||0.18, c.currentTime+start+0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime+start+dur);
+  osc.connect(gain); gain.connect(c.destination);
+  osc.start(c.currentTime+start);
+  osc.stop(c.currentTime+start+dur+0.05);
+}
+function playSuccess(){
+  tone(523,0,0.18,"triangle",0.2);
+  tone(659,0.1,0.18,"triangle",0.2);
+  tone(784,0.2,0.18,"triangle",0.2);
+  tone(1047,0.32,0.3,"triangle",0.22);
+}
+function playFail(){
+  tone(300,0,0.25,"sawtooth",0.14);
+  tone(220,0.15,0.35,"sawtooth",0.14);
+}
+function playThrow(){
+  tone(440,0,0.08,"square",0.08);
+}
+
+// BGM（祭囃子風の簡易ループ）
+var bgmOn = false;
+var bgmTimeoutId = null;
+var bgmMelody = [659,784,880,784,659,587,523,587]; // ペンタトニック風
+function scheduleBGM(){
+  if(!bgmOn) return;
+  var c = getCtx();
+  var t0 = c.currentTime;
+  var noteLen = 0.32;
+  for(var i=0;i<bgmMelody.length;i++){
+    tone(bgmMelody[i], i*noteLen, noteLen*0.9, "triangle", 0.07);
+  }
+  // 太鼓っぽいリズム
+  for(var j=0;j<4;j++){
+    tone(110, j*noteLen*2, 0.1, "square", 0.05);
+  }
+  bgmTimeoutId = setTimeout(scheduleBGM, bgmMelody.length*noteLen*1000);
+}
+// BGMを最初のクリック/タップ操作で自動的に開始（ブラウザの自動再生制限のため、
+// ユーザー操作なしには音は出せないので、画面上の最初の操作をきっかけにする）
+function startBgmOnce(){
+  if(bgmOn) return;
+  bgmOn = true;
+  getCtx();
+  scheduleBGM();
+  document.removeEventListener('click', startBgmOnce);
+  document.removeEventListener('touchstart', startBgmOnce);
+}
+document.addEventListener('click', startBgmOnce);
+document.addEventListener('touchstart', startBgmOnce);
+
+// ====== 景品ボタン生成 ======
+var prizeListEl = document.getElementById('prizeList');
+prizes.forEach(function(p, idx){
+  var b = document.createElement('button');
+  b.className = 'prizeBtn';
+  b.textContent = p.name + "（" + p.pt + "点）";
+  b.onclick = function(){
+    if(stage!==0 || gameOver) return;
+    selectedPrize = p;
+    Array.prototype.forEach.call(prizeListEl.children, function(c){c.classList.remove('selected');});
+    b.classList.add('selected');
+    document.getElementById('status').textContent = p.name + " を狙います！「威力ゲージ開始」を押してね";
+    document.getElementById('mainBtn').textContent = "威力ゲージ開始";
+  };
+  prizeListEl.appendChild(b);
+});
+// 最初から1つ目の景品を選択状態にして、ゲージの目印を最初から見えるようにする
+selectedPrize = prizes[0];
+prizeListEl.children[0].classList.add('selected');
+
+// ====== ゲージマーカー（選択した景品の理想値）表示 ======
+function updateMarks(){
+  if(!selectedPrize){
+    document.getElementById('powerMark').style.left='-10px';
+    document.getElementById('aimMark').style.left='-10px';
+    return;
+  }
+  var idealPower = (selectedPrize.y-60)/150*100;
+  var idealAim = (selectedPrize.x-THROW_X)/2.9;
+  document.getElementById('powerMark').style.left = Math.max(0,Math.min(98,idealPower)) + "%";
+  document.getElementById('aimMark').style.left = (50 + Math.max(-50,Math.min(50,idealAim/2))) + "%";
+}
+
+// ====== メインボタンの状態遷移 ======
+var mainBtn = document.getElementById('mainBtn');
+mainBtn.onclick = function(){
+  if(gameOver) return;
+  if(stage===0){
+    if(!selectedPrize){
+      document.getElementById('status').textContent = "先に景品を選んでください！";
+      return;
+    }
+    updateMarks();
+    startPowerGauge();
+  }else if(stage===1){
+    lockPower();
+  }else if(stage===2){
+    lockAim();
+  }
+};
+
+function startPowerGauge(){
+  stage = 1;
+  powerVal = 0; powerDir = 3;
+  mainBtn.textContent = "威力ストップ！";
+  document.getElementById('status').textContent = "クリック/タップでゲージを止めよう（青い線がねらい目）";
+  if(powerTimer) clearInterval(powerTimer);
+  powerTimer = setInterval(function(){
+    powerVal += powerDir;
+    if(powerVal>=100){ powerVal=100; powerDir=-3; }
+    if(powerVal<=0){ powerVal=0; powerDir=3; }
+    document.getElementById('powerFill').style.width = powerVal+"%";
+  }, 16);
+}
+function lockPower(){
+  clearInterval(powerTimer);
+  powerLocked = powerVal;
+  stage = 2;
+  mainBtn.textContent = "方向ストップ！";
+  document.getElementById('status').textContent = "方向ゲージを止めて投げよう！";
+  aimVal = 0; aimDir = 4;
+  if(aimTimer) clearInterval(aimTimer);
+  aimTimer = setInterval(function(){
+    aimVal += aimDir;
+    if(aimVal>=100){ aimVal=100; aimDir=-4; }
+    if(aimVal<=-100){ aimVal=-100; aimDir=4; }
+    document.getElementById('aimCursor').style.left = (50 + aimVal/2) + "%";
+  }, 16);
+}
+function lockAim(){
+  clearInterval(aimTimer);
+  aimLocked = aimVal;
+  stage = 3;
+  mainBtn.disabled = true;
+  document.getElementById('status').textContent = "輪が飛んでいく...！";
+  playThrow();
+  doThrow();
+}
+
+// ====== 投擲アニメーション & 判定 ======
+function doThrow(){
+  var landX = aimToX(aimLocked);
+  var landY = powerToY(powerLocked);
+  // ランダムなブレを加える(難易度)
+  landX += (Math.random()-0.5)*22;
+  landY += (Math.random()-0.5)*14;
+  landX = Math.max(20, Math.min(W-20, landX));
+  landY = Math.max(40, Math.min(220, landY));
+
+  var startT = null;
+  var dur = 650;
+  function animate(ts){
+    if(!startT) startT = ts;
+    var p = Math.min(1, (ts-startT)/dur);
+    var cx = THROW_X + (landX-THROW_X)*p;
+    var cy = THROW_Y + (landY-THROW_Y)*p;
+    var scale = 1 + Math.sin(p*Math.PI)*0.9; // 上から見て浮いている＝大きく見える演出
+    drawBoard();
+    drawRingFlying(cx, cy, undefined, scale);
+    if(p<1){
+      requestAnimationFrame(animate);
+    }else{
+      finishThrow(landX, landY);
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
+function circleHit(x1,y1,r1,x2,y2,r2){
+  var dx=x1-x2, dy=y1-y2;
+  return Math.sqrt(dx*dx+dy*dy) <= (r1+r2);
+}
+
+function finishThrow(lx, ly){
+  ringsLeft--;
+  document.getElementById('ringVal').textContent = ringsLeft;
+
+  var hit = null;
+  var bestDist = Infinity;
+  for(var i=0;i<prizes.length;i++){
+    var p = prizes[i];
+    if(circleHit(lx,ly,ringR,p.x,p.y,p.r)){
+      var d = Math.hypot(lx-p.x, ly-p.y);
+      if(d<bestDist){ bestDist=d; hit=p; }
+    }
+  }
+
+  var logEl = document.getElementById('resultLog');
+  if(hit){
+    score += hit.pt;
+    gotItems.push(hit.name);
+    document.getElementById('scoreVal').textContent = score;
+    document.getElementById('status').textContent = "🎉 命中！「" + hit.name + "」獲得！(+" + hit.pt + "点)";
+    logEl.textContent = "獲得した景品: " + gotItems.join("、");
+    playSuccess();
+    landedRing = {x:lx,y:ly,hit:true};
+  }else{
+    document.getElementById('status').textContent = "😢 残念、外れました...";
+    playFail();
+    landedRing = {x:lx,y:ly,hit:false};
+  }
+  drawBoard();
+
+  setTimeout(function(){
+    landedRing = null;
+    if(ringsLeft<=0){
+      endGame();
+    }else{
+      resetForNextThrow();
+    }
+  }, 900);
+}
+
+function resetForNextThrow(){
+  stage = 0;
+  selectedPrize = prizes[0];
+  powerLocked = null; aimLocked = null;
+  document.getElementById('powerFill').style.width='0%';
+  document.getElementById('aimCursor').style.left='50%';
+  Array.prototype.forEach.call(prizeListEl.children, function(c){c.classList.remove('selected');});
+  prizeListEl.children[0].classList.add('selected');
+  mainBtn.disabled = false;
+  mainBtn.textContent = "威力ゲージ開始";
+  document.getElementById('status').textContent = "景品を選んでね（残り" + ringsLeft + "個）。このままでも投げられます";
+  updateMarks();
+  drawBoard();
+}
+
+function endGame(){
+  gameOver = true;
+  mainBtn.disabled = true;
+  var overlay = document.getElementById('overlay');
+  overlay.style.display = 'flex';
+  var resultText = "最終スコア: " + score + " 点\n";
+  resultText += gotItems.length ? ("獲得景品: " + gotItems.join("、")) : "獲得景品なし...またチャレンジしてね！";
+  document.getElementById('resultText').textContent = resultText;
+}
+
+document.getElementById('retryBtn').onclick = function(){
+  score = 0; ringsLeft = 10; gotItems = []; gameOver = false;
+  document.getElementById('scoreVal').textContent = 0;
+  document.getElementById('ringVal').textContent = 5;
+  document.getElementById('resultLog').textContent = '';
+  document.getElementById('overlay').style.display = 'none';
+  resetForNextThrow();
+};
+
+// ====== 描画（真上から見たトップダウン視点） ======
+var landedRing = null;
+function drawBoard(){
+  ctx.clearRect(0,0,W,H);
+
+  // 地面（ゴザ・畳を上から見たイメージ）
+  ctx.fillStyle = "#3d2a1a";
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = "rgba(255,220,150,0.08)";
+  ctx.lineWidth = 1;
+  for(var gx=0; gx<=W; gx+=24){
+    ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke();
+  }
+  for(var gy=0; gy<=H; gy+=24){
+    ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke();
+  }
+  // 中央の丸いゴザ
+  ctx.beginPath();
+  ctx.ellipse(W/2, H/2+10, W*0.46, H*0.46, 0, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(180,90,40,0.35)";
+  ctx.fill();
+
+  // 投げる人（真上から見た円＋影）→ 画面下中央
+  ctx.beginPath();
+  ctx.ellipse(THROW_X, THROW_Y, 16, 8, 0, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(THROW_X, THROW_Y, 11, 0, Math.PI*2);
+  ctx.fillStyle = "#ffd34d";
+  ctx.fill();
+  ctx.strokeStyle = "#b3001b"; ctx.lineWidth=2; ctx.stroke();
+
+  // 景品ターゲット（上から見た二重円＋中心ペグの点）
+  prizes.forEach(function(p){
+    var isSel = (selectedPrize===p);
+    // 影
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y+3, p.r*1.05, p.r*0.9, 0, 0, Math.PI*2);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fill();
+    // 外円
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.lineWidth = isSel?4:2;
+    ctx.strokeStyle = isSel?"#ffd34d":"#fff";
+    ctx.stroke();
+    // 内円（リング状の的らしさ）
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r*0.55, 0, Math.PI*2);
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // 中心ペグ（上から見ると点に見える）
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+    ctx.fillStyle = "#3a2410";
+    ctx.fill();
+
+    ctx.fillStyle="#2d1b3d";
+    ctx.font="bold 11px sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText(p.pt+"pt", p.x, p.y + p.r + 14);
+    ctx.font="bold 10px sans-serif";
+    ctx.fillStyle="#fff5e0";
+  });
+
+  if(landedRing){
+    drawRingFlying(landedRing.x, landedRing.y, landedRing.hit, 1);
+  }
+}
+
+// 輪を真円（トップダウンなので潰さない）で描画。scaleで高さ（浮遊感）を表現
+function drawRingFlying(x,y,settled,scale){
+  scale = scale || 1;
+  // 影（地面に落ちる影でジャンプ感を出す）
+  ctx.beginPath();
+  ctx.ellipse(x, y, ringR*0.9, ringR*0.45, 0, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(x, y, ringR*scale, 0, Math.PI*2);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = settled===false ? "#999" : "#ff3b3b";
+  ctx.stroke();
+}
+
+drawBoard();
+updateMarks();
+</script>
+</body>
+</html>
