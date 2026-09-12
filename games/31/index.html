@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>ポコポコもぐらたたきゲーム</title>
+<style>
+  :root{
+    --bg1:#8fd3ff;
+    --bg2:#4fb0e8;
+    --panel:#ffffff;
+    --accent:#ff7043;
+    --text:#2b3a4a;
+    --app-height: 100vh;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    overflow:hidden; overscroll-behavior:none;
+    touch-action:none;
+    position:fixed;
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    background:linear-gradient(180deg,var(--bg1),var(--bg2));
+    color:var(--text);
+  }
+  #app{
+    width:100%;
+    height:var(--app-height);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    padding:6px;
+    gap:6px;
+  }
+
+  /* ---------- 共通パネル ---------- */
+  .panel{
+    background:var(--panel);
+    border-radius:18px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.18);
+    padding:16px 18px;
+  }
+
+  /* ---------- スタート画面 ---------- */
+  #startScreen, #endScreen{
+    flex:1;
+    width:100%;
+    max-width:520px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+  }
+  #startScreen.hidden, #endScreen.hidden{ display:none; }
+  .title{
+    font-size:clamp(20px,6vw,34px);
+    font-weight:900;
+    color:#3a5a1f;
+    text-shadow:2px 2px 0 #fff, 0 4px 8px rgba(0,0,0,0.2);
+    margin:0;
+    letter-spacing:1px;
+    text-align:center;
+    line-height:1.3;
+  }
+  .subtitle{
+    font-size:13px;
+    color:#557;
+    margin:0 0 4px 0;
+  }
+  .legend{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    width:100%;
+  }
+  .legend-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:14px;
+    background:#f4f7fa;
+    border-radius:10px;
+    padding:6px 10px;
+  }
+  .legend-swatch{
+    width:34px; height:34px; flex:0 0 auto;
+    border-radius:50%;
+    position:relative;
+    box-shadow:inset 0 -4px 0 rgba(0,0,0,0.15);
+  }
+  .legend-label{ flex:1; font-weight:700; }
+  .legend-pt{ font-weight:900; font-size:15px; }
+  .pt-plus{ color:#e07800; }
+  .pt-minus{ color:#d32f2f; }
+
+  .big-btn{
+    appearance:none;
+    border:none;
+    background:linear-gradient(180deg,#ffb74d,var(--accent));
+    color:#fff;
+    font-size:20px;
+    font-weight:900;
+    padding:14px 40px;
+    border-radius:999px;
+    box-shadow:0 6px 0 #c8481f, 0 10px 18px rgba(0,0,0,0.25);
+    margin-top:6px;
+    letter-spacing:2px;
+  }
+  .big-btn:active{
+    transform:translateY(4px);
+    box-shadow:0 2px 0 #c8481f, 0 4px 10px rgba(0,0,0,0.25);
+  }
+  .best-line{
+    font-size:14px;
+    font-weight:700;
+    color:#3a5a1f;
+  }
+
+  /* ---------- ゲーム画面 ---------- */
+  #gameScreen{
+    flex:1;
+    width:100%;
+    max-width:560px;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  #gameScreen.hidden{ display:none; }
+
+  #hud{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 14px;
+    flex:0 0 auto;
+  }
+  .hud-item{ text-align:center; min-width:64px; }
+  .hud-label{ font-size:10px; color:#889; font-weight:700; }
+  .hud-value{ font-size:20px; font-weight:900; color:#2b3a4a; }
+  #timeValue.warn{ color:#d32f2f; }
+  #comboWrap{
+    font-size:12px;
+    font-weight:900;
+    color:#ff7043;
+    min-height:14px;
+  }
+
+  #boardWrap{
+    flex:1;
+    min-height:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  #board{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    grid-template-rows:repeat(3,1fr);
+    gap:3%;
+    width:min(100%,var(--board-size,320px));
+    height:min(100%,var(--board-size,320px));
+  }
+
+  .hole-cell{
+    position:relative;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    overflow:visible;
+  }
+  /* box-clip: 箱の範囲外にモグラが絶対にはみ出さないようクリッピングする器。
+     引っ込んだモグラは下方向に大きく移動するが、bottomをセルの下端で
+     揃えてoverflow:hiddenにすることで完全に非表示になる。
+     スコア演出(score-pop/boom)はこの器の外(hole-cell直下)に置くため影響を受けない。 */
+  .box-clip{
+    position:absolute;
+    inset:0;
+    overflow:hidden;
+  }
+  /* ---- 箱デザイン ----
+     重なり順（背面→前面）:
+     box-flap（開いた折りフタ）→ box-opening（箱の中の暗がり）
+     → mole（モグラ）→ box-front（箱の前面パネル）
+     box-front がモグラの下半身より前面(z-indexが上)にあるため、
+     モグラが引っ込んでいる間は箱の中身が一切見えない。
+  */
+  .box-flap{
+    position:absolute;
+    top:32%;
+    width:34%;
+    height:26%;
+    background:linear-gradient(135deg,#d9b083,#b8895a);
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,0.08);
+    z-index:1;
+  }
+  .box-flap.l{
+    left:2%;
+    transform:rotate(-18deg);
+    clip-path:polygon(0 100%, 100% 100%, 100% 15%, 0 55%);
+    transform-origin:bottom right;
+  }
+  .box-flap.r{
+    right:2%;
+    transform:rotate(18deg);
+    clip-path:polygon(0 100%, 100% 100%, 100% 55%, 0 15%);
+    transform-origin:bottom left;
+  }
+  .box-opening{
+    position:absolute;
+    bottom:38%;
+    left:50%;
+    transform:translateX(-50%);
+    width:66%;
+    height:32%;
+    background:radial-gradient(ellipse at 50% 30%, #2a1c10, #000 85%);
+    border-radius:8% 8% 50% 50%/20% 20% 60% 60%;
+    z-index:1;
+  }
+  .box-front{
+    position:absolute;
+    bottom:0;
+    left:50%;
+    transform:translateX(-50%);
+    width:96%;
+    height:46%;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.16), rgba(0,0,0,0.12) 100%),
+      linear-gradient(135deg, #d9b083 0%, #c99a5f 45%, #b8845072 45%, #c99a5f 55%, #d9b083 100%),
+      linear-gradient(45deg, transparent 46%, #8a5f34 46%, #8a5f34 54%, transparent 54%),
+      linear-gradient(-45deg, transparent 46%, #8a5f34 46%, #8a5f34 54%, transparent 54%),
+      #cc9d64;
+    border-radius:6% 6% 10% 10%/10% 10% 14% 14%;
+    box-shadow:
+      inset 0 8px 6px -4px rgba(255,255,255,0.35),
+      inset 0 -10px 14px rgba(0,0,0,0.3),
+      0 4px 6px rgba(0,0,0,0.25);
+    z-index:3;
+  }
+  .box-front::before{
+    content:"";
+    position:absolute;
+    top:0; left:0; right:0;
+    height:14%;
+    background:linear-gradient(180deg, rgba(255,255,255,0.45), transparent);
+    border-radius:6% 6% 0 0/10% 10% 0 0;
+  }
+  .hole-hit{
+    position:absolute;
+    bottom:0;
+    left:50%;
+    transform:translateX(-50%);
+    width:100%;
+    height:100%;
+    z-index:6;
+  }
+
+  .mole{
+    position:absolute;
+    left:50%;
+    bottom:22%;
+    width:60%;
+    height:66%;
+    transform:translate(-50%,115%);
+    transition:transform 0.16s cubic-bezier(.34,1.56,.64,1);
+    z-index:2;
+  }
+  .mole.up{ transform:translate(-50%,0%); }
+  .mole.hit{
+    transition:transform 0.18s ease-in, opacity 0.18s ease-in;
+    transform:translate(-50%,10%) scale(0.7) rotate(15deg);
+    opacity:0;
+  }
+  .mole.escaped{
+    transition:transform 0.22s ease-in;
+    transform:translate(-50%,120%);
+  }
+
+  .mole-body{
+    position:absolute; inset:0;
+    border-radius:50% 50% 46% 46%/58% 58% 42% 42%;
+    box-shadow:inset 0 -6px 8px rgba(0,0,0,0.25), 0 4px 6px rgba(0,0,0,0.3);
+  }
+  .mole-eye{
+    position:absolute;
+    top:36%;
+    width:16%;
+    height:14%;
+  }
+  .mole-eye.l{ left:19%; }
+  .mole-eye.r{ right:19%; transform:scaleX(-1); }
+  .mole-eye::before,
+  .mole-eye::after{
+    content:"";
+    position:absolute;
+    left:0; top:50%;
+    width:100%;
+    height:15%;
+    background:#2a2018;
+    border-radius:3px;
+    transform-origin:0% 50%;
+  }
+  .mole-eye::before{ transform:rotate(24deg); }
+  .mole-eye::after{ transform:rotate(-24deg); }
+
+  .mole-whiskers{
+    position:absolute;
+    top:48%;
+    width:40%;
+    height:1px;
+  }
+  .mole-whiskers.l{ left:-10%; }
+  .mole-whiskers.r{ right:-10%; transform:scaleX(-1); }
+  .mole-whiskers span{
+    position:absolute;
+    left:0; top:0;
+    width:100%;
+    height:2px;
+    background:rgba(45,32,20,0.55);
+    border-radius:2px;
+    transform-origin:100% 50%;
+  }
+  .mole-whiskers span:nth-child(1){ transform:translateY(-260%) rotate(-13deg); }
+  .mole-whiskers span:nth-child(2){ transform:translateY(0) rotate(0deg); }
+  .mole-whiskers span:nth-child(3){ transform:translateY(240%) rotate(13deg); }
+
+  .mole-nose{
+    position:absolute;
+    top:52%;
+    left:50%;
+    transform:translateX(-50%);
+    width:20%;
+    height:16%;
+    background:#3a2a2a;
+    border-radius:50%;
+  }
+
+  /* type colors */
+  .type-normal .mole-body{ background:radial-gradient(circle at 35% 25%, #b98455, #7a5230 80%); }
+
+  .type-gold .mole-body{ background:radial-gradient(circle at 35% 25%, #ffe98a, #d9a520 80%); }
+  .type-gold .mole-body{ box-shadow:inset 0 -6px 8px rgba(0,0,0,0.2), 0 0 14px rgba(255,215,0,0.7); }
+
+  .type-diamond .mole-body{ background:radial-gradient(circle at 35% 25%, #e6faff, #62c9e8 80%); }
+  .type-diamond .mole-body{ box-shadow:inset 0 -6px 8px rgba(0,0,0,0.15), 0 0 16px rgba(120,220,255,0.85); }
+
+  .type-bomb .mole-body{ background:radial-gradient(circle at 35% 25%, #5a5a5a, #101010 85%); }
+  .type-bomb .mole-eye{ background:#ff3b3b; }
+  .type-bomb::after{
+    content:"";
+    position:absolute;
+    top:-18%; left:50%;
+    width:6%; height:22%;
+    background:#c99a53;
+    transform:translateX(-50%) rotate(12deg);
+  }
+  .type-bomb::before{
+    content:"✹";
+    position:absolute;
+    top:-34%; left:58%;
+    font-size:15px;
+    color:#ff9800;
+  }
+
+  /* スコアポップアップ */
+  .score-pop{
+    position:absolute;
+    left:50%; top:20%;
+    transform:translate(-50%,0);
+    font-weight:900;
+    font-size:20px;
+    pointer-events:none;
+    animation:popup 0.7s ease-out forwards;
+    z-index:10;
+    text-shadow:1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+  }
+  .score-pop.plus{ color:#e07800; }
+  .score-pop.minus{ color:#d32f2f; }
+  @keyframes popup{
+    0%{ opacity:0; transform:translate(-50%,10px) scale(0.6); }
+    30%{ opacity:1; transform:translate(-50%,-20px) scale(1.15); }
+    100%{ opacity:0; transform:translate(-50%,-55px) scale(1); }
+  }
+
+  /* エフェクト（爆発）*/
+  .boom{
+    position:absolute;
+    left:50%; top:30%;
+    transform:translate(-50%,-50%);
+    font-size:34px;
+    pointer-events:none;
+    animation:boomAnim 0.5s ease-out forwards;
+    z-index:11;
+  }
+  @keyframes boomAnim{
+    0%{ opacity:1; transform:translate(-50%,-50%) scale(0.4); }
+    60%{ opacity:1; transform:translate(-50%,-50%) scale(1.4); }
+    100%{ opacity:0; transform:translate(-50%,-50%) scale(1.6); }
+  }
+
+  /* ---------- 結果画面 ---------- */
+  .result-score{
+    font-size:44px;
+    font-weight:900;
+    color:var(--accent);
+    margin:4px 0;
+  }
+  .newrecord{
+    color:#e07800;
+    font-weight:900;
+    font-size:15px;
+  }
+
+  /* 横画面レイアウト（JS制御） */
+  body.landscape-layout #app{
+    flex-direction:row;
+    align-items:stretch;
+  }
+  body.landscape-layout #gameScreen{
+    flex-direction:row;
+    max-width:100%;
+    height:100%;
+  }
+  body.landscape-layout #hud{
+    flex-direction:column;
+    justify-content:center;
+    gap:14px;
+    width:110px;
+    flex:0 0 auto;
+  }
+  body.landscape-layout #boardWrap{
+    flex:1;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- スタート画面 -->
+  <div id="startScreen" class="panel">
+    <h1 class="title">🔨 ポコポコ<br>もぐらたたきゲーム</h1>
+    <p class="subtitle">出てきたモグラをタップして得点をゲット！種類によって点数が違うよ</p>
+    <div class="legend">
+      <div class="legend-row">
+        <div class="legend-swatch" style="background:radial-gradient(circle at 35% 25%,#b98455,#7a5230 80%);"></div>
+        <div class="legend-label">茶モグラ</div>
+        <div class="legend-pt pt-plus">+10</div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-swatch" style="background:radial-gradient(circle at 35% 25%,#ffe98a,#d9a520 80%);"></div>
+        <div class="legend-label">金モグラ</div>
+        <div class="legend-pt pt-plus">+30</div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-swatch" style="background:radial-gradient(circle at 35% 25%,#e6faff,#62c9e8 80%);"></div>
+        <div class="legend-label">ダイヤモグラ</div>
+        <div class="legend-pt pt-plus">+50</div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-swatch" style="background:radial-gradient(circle at 35% 25%,#5a5a5a,#101010 85%);"></div>
+        <div class="legend-label">爆弾（叩かないで！）</div>
+        <div class="legend-pt pt-minus">−30</div>
+      </div>
+    </div>
+    <div class="best-line">ベストスコア: <span id="bestScoreStart">0</span></div>
+    <button class="big-btn" id="startBtn">スタート</button>
+  </div>
+
+  <!-- ゲーム画面 -->
+  <div id="gameScreen" class="hidden">
+    <div id="hud" class="panel">
+      <div class="hud-item">
+        <div class="hud-label">スコア</div>
+        <div class="hud-value" id="scoreValue">0</div>
+      </div>
+      <div class="hud-item">
+        <div class="hud-label">残り時間</div>
+        <div class="hud-value" id="timeValue">45</div>
+      </div>
+      <div class="hud-item">
+        <div class="hud-label">ベスト</div>
+        <div class="hud-value" id="bestScoreHud">0</div>
+      </div>
+    </div>
+    <div id="comboWrap"></div>
+    <div id="boardWrap">
+      <div id="board"></div>
+    </div>
+  </div>
+
+  <!-- 結果画面 -->
+  <div id="endScreen" class="panel hidden">
+    <h2 class="title" style="font-size:26px;">タイムアップ！</h2>
+    <div class="result-score" id="finalScore">0</div>
+    <div id="newRecordLine" class="newrecord" style="display:none;">🎉 ベスト記録更新！</div>
+    <div class="best-line">ベストスコア: <span id="bestScoreEnd">0</span></div>
+    <button class="big-btn" id="retryBtn">もう一度</button>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =========================================================
+     定数・状態
+  ========================================================= */
+  var HOLE_COUNT = 9;
+  var GAME_DURATION = 45; // 秒
+  var STORAGE_KEY = 'mogura_best_score';
+
+  var MOLE_TYPES = [
+    { id:'normal',  label:'茶モグラ',     points:10,  weight:55 },
+    { id:'gold',    label:'金モグラ',     points:30,  weight:25 },
+    { id:'diamond', label:'ダイヤモグラ', points:50,  weight:12 },
+    { id:'bomb',    label:'爆弾',        points:-30, weight:8  }
+  ];
+  var TOTAL_WEIGHT = MOLE_TYPES.reduce(function(s,t){ return s+t.weight; }, 0);
+
+  var state = {
+    running:false,
+    score:0,
+    timeLeft:GAME_DURATION,
+    combo:0,
+    startTime:0,
+    holes:[], // {el, moleEl, active, type, timeoutId}
+    tickTimer:null,
+    countdownTimer:null
+  };
+
+  var els = {
+    startScreen: document.getElementById('startScreen'),
+    gameScreen: document.getElementById('gameScreen'),
+    endScreen: document.getElementById('endScreen'),
+    board: document.getElementById('board'),
+    scoreValue: document.getElementById('scoreValue'),
+    timeValue: document.getElementById('timeValue'),
+    bestScoreHud: document.getElementById('bestScoreHud'),
+    bestScoreStart: document.getElementById('bestScoreStart'),
+    bestScoreEnd: document.getElementById('bestScoreEnd'),
+    finalScore: document.getElementById('finalScore'),
+    newRecordLine: document.getElementById('newRecordLine'),
+    comboWrap: document.getElementById('comboWrap'),
+    startBtn: document.getElementById('startBtn'),
+    retryBtn: document.getElementById('retryBtn')
+  };
+
+  /* =========================================================
+     ベストスコア
+  ========================================================= */
+  function getBest(){
+    try{
+      var v = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+      return isNaN(v) ? 0 : v;
+    }catch(e){ return 0; }
+  }
+  function setBest(v){
+    try{ localStorage.setItem(STORAGE_KEY, String(v)); }catch(e){}
+  }
+
+  /* =========================================================
+     音声（Web Audio APIで完全合成、共有AudioContext）
+  ========================================================= */
+  var audioCtx = null;
+  function ensureAudio(){
+    if(!audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) audioCtx = new AC();
+    }
+    if(audioCtx && audioCtx.state === 'suspended'){
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  function playTone(freq, duration, type, gainVal, delay){
+    var ctx = ensureAudio();
+    if(!ctx) return;
+    var t0 = ctx.currentTime + (delay||0);
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.linearRampToValueAtTime(gainVal||0.2, t0+0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0+duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0+duration+0.02);
+  }
+
+  function sndHit(basePoints){
+    if(basePoints >= 50){
+      playTone(1046,0.09,'triangle',0.25,0);
+      playTone(1318,0.12,'triangle',0.22,0.06);
+      playTone(1568,0.15,'triangle',0.2,0.12);
+    } else if(basePoints >= 30){
+      playTone(880,0.09,'triangle',0.25,0);
+      playTone(1174,0.13,'triangle',0.22,0.07);
+    } else {
+      playTone(660,0.09,'square',0.2,0);
+    }
+  }
+  function sndBomb(){
+    playTone(140,0.28,'sawtooth',0.3,0);
+    playTone(90,0.32,'sawtooth',0.25,0.05);
+  }
+  function sndStart(){
+    playTone(523,0.1,'sine',0.2,0);
+    playTone(659,0.1,'sine',0.2,0.1);
+    playTone(784,0.16,'sine',0.2,0.2);
+  }
+  function sndGameOver(){
+    playTone(784,0.15,'sine',0.22,0);
+    playTone(659,0.15,'sine',0.2,0.15);
+    playTone(523,0.25,'sine',0.2,0.3);
+  }
+  function sndMiss(){
+    playTone(220,0.08,'square',0.12,0);
+  }
+
+  /* =========================================================
+     レスポンシブサイズ調整
+     （getBoundingClientRect + visualViewport による実測値方式）
+  ========================================================= */
+  function setAppHeight(){
+    var vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+    document.documentElement.style.setProperty('--app-height', vh + 'px');
+  }
+
+  function fitBoard(){
+    var wrap = document.getElementById('boardWrap');
+    if(!wrap) return;
+    var rect = wrap.getBoundingClientRect();
+    var size = Math.max(180, Math.min(rect.width, rect.height));
+    document.documentElement.style.setProperty('--board-size', size + 'px');
+  }
+
+  function updateOrientation(){
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var isLandscape = vw > vh && vh < 500;
+    document.body.classList.toggle('landscape-layout', isLandscape);
+  }
+
+  function scheduleLayoutUpdate(){
+    updateOrientation();
+    setAppHeight();
+    requestAnimationFrame(fitBoard);
+    setTimeout(function(){ updateOrientation(); setAppHeight(); fitBoard(); }, 300);
+    setTimeout(function(){ updateOrientation(); setAppHeight(); fitBoard(); }, 900);
+  }
+
+  window.addEventListener('resize', scheduleLayoutUpdate);
+  window.addEventListener('orientationchange', scheduleLayoutUpdate);
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', scheduleLayoutUpdate);
+  }
+
+  /* =========================================================
+     盤面生成
+  ========================================================= */
+  function buildBoard(){
+    els.board.innerHTML = '';
+    state.holes = [];
+    for(var i=0;i<HOLE_COUNT;i++){
+      var cell = document.createElement('div');
+      cell.className = 'hole-cell';
+
+      var clip = document.createElement('div');
+      clip.className = 'box-clip';
+
+      var flapL = document.createElement('div');
+      flapL.className = 'box-flap l';
+      var flapR = document.createElement('div');
+      flapR.className = 'box-flap r';
+
+      var opening = document.createElement('div');
+      opening.className = 'box-opening';
+
+      var front = document.createElement('div');
+      front.className = 'box-front';
+
+      var hitZone = document.createElement('div');
+      hitZone.className = 'hole-hit';
+
+      var mole = document.createElement('div');
+      mole.className = 'mole';
+      mole.innerHTML =
+        '<div class="mole-body">' +
+          '<div class="mole-eye l"></div><div class="mole-eye r"></div>' +
+          '<div class="mole-whiskers l"><span></span><span></span><span></span></div>' +
+          '<div class="mole-whiskers r"><span></span><span></span><span></span></div>' +
+          '<div class="mole-nose"></div>' +
+        '</div>';
+
+      clip.appendChild(flapL);
+      clip.appendChild(flapR);
+      clip.appendChild(opening);
+      clip.appendChild(mole);
+      clip.appendChild(front);
+      clip.appendChild(hitZone);
+      cell.appendChild(clip);
+      els.board.appendChild(cell);
+
+      var holeData = { el:cell, moleEl:mole, hitZone:hitZone, active:false, type:null, hideTimer:null, index:i };
+      state.holes.push(holeData);
+
+      (function(hd){
+        hitZone.addEventListener('pointerdown', function(e){
+          e.preventDefault();
+          whack(hd);
+        }, {passive:false});
+      })(holeData);
+    }
+  }
+
+  /* =========================================================
+     モランダム選択
+  ========================================================= */
+  function pickType(){
+    var r = Math.random() * TOTAL_WEIGHT;
+    for(var i=0;i<MOLE_TYPES.length;i++){
+      r -= MOLE_TYPES[i].weight;
+      if(r <= 0) return MOLE_TYPES[i];
+    }
+    return MOLE_TYPES[0];
+  }
+
+  function getDifficultyFactor(){
+    var elapsed = (Date.now() - state.startTime) / 1000;
+    return Math.min(1, elapsed / GAME_DURATION);
+  }
+
+  function currentShowDuration(){
+    var f = getDifficultyFactor();
+    // 1400ms -> 650ms
+    return 1400 - f * 750;
+  }
+
+  function currentMaxActive(){
+    var f = getDifficultyFactor();
+    if(f < 0.35) return 1;
+    if(f < 0.75) return 2;
+    return 3;
+  }
+
+  function currentSpawnChance(){
+    var f = getDifficultyFactor();
+    return 0.28 + f * 0.32;
+  }
+
+  /* =========================================================
+     モグラ出現・消滅
+  ========================================================= */
+  function spawnMole(){
+    var activeCount = state.holes.filter(function(h){ return h.active; }).length;
+    if(activeCount >= currentMaxActive()) return;
+
+    var freeHoles = state.holes.filter(function(h){ return !h.active; });
+    if(freeHoles.length === 0) return;
+
+    var hole = freeHoles[Math.floor(Math.random()*freeHoles.length)];
+    var type = pickType();
+
+    hole.active = true;
+    hole.type = type;
+    hole.moleEl.className = 'mole type-' + type.id;
+
+    requestAnimationFrame(function(){
+      hole.moleEl.classList.add('up');
+    });
+
+    var dur = currentShowDuration() + Math.random()*250;
+    hole.hideTimer = setTimeout(function(){
+      hideMole(hole, true);
+    }, dur);
+  }
+
+  function hideMole(hole, escaped){
+    if(!hole.active) return;
+    hole.active = false;
+    if(hole.hideTimer){ clearTimeout(hole.hideTimer); hole.hideTimer = null; }
+    hole.moleEl.classList.remove('up');
+    if(escaped){
+      hole.moleEl.classList.add('escaped');
+      setTimeout(function(){ hole.moleEl.classList.remove('escaped'); }, 250);
+    }
+    hole.type = null;
+  }
+
+  function whack(hole){
+    if(!state.running) return;
+    if(!hole.active){
+      return; // 空振り（何も起きない）
+    }
+    var type = hole.type;
+    hole.active = false;
+    if(hole.hideTimer){ clearTimeout(hole.hideTimer); hole.hideTimer = null; }
+
+    hole.moleEl.classList.add('hit');
+    setTimeout(function(){
+      hole.moleEl.classList.remove('hit');
+      hole.moleEl.classList.remove('up');
+    }, 200);
+
+    if(type.id === 'bomb'){
+      state.combo = 0;
+      applyScore(type.points, hole, false);
+      sndBomb();
+      showBoom(hole);
+    } else {
+      state.combo++;
+      var multiplier = 1 + Math.floor(state.combo/5)*0.5;
+      if(multiplier > 3) multiplier = 3;
+      var gained = Math.round(type.points * multiplier);
+      applyScore(gained, hole, true);
+      sndHit(type.points);
+    }
+    updateComboDisplay();
+  }
+
+  function applyScore(delta, hole, isPlus){
+    state.score += delta;
+    if(state.score < 0) state.score = 0;
+    els.scoreValue.textContent = state.score;
+    showScorePop(hole, delta, isPlus);
+  }
+
+  function showScorePop(hole, delta, isPlus){
+    var pop = document.createElement('div');
+    pop.className = 'score-pop ' + (isPlus ? 'plus' : 'minus');
+    pop.textContent = (delta >= 0 ? '+' : '') + delta;
+    hole.el.appendChild(pop);
+    setTimeout(function(){ pop.remove(); }, 720);
+  }
+
+  function showBoom(hole){
+    var boom = document.createElement('div');
+    boom.className = 'boom';
+    boom.textContent = '💥';
+    hole.el.appendChild(boom);
+    setTimeout(function(){ boom.remove(); }, 520);
+  }
+
+  function updateComboDisplay(){
+    if(state.combo >= 5){
+      var mult = 1 + Math.floor(state.combo/5)*0.5;
+      if(mult > 3) mult = 3;
+      els.comboWrap.textContent = state.combo + 'コンボ！ ×' + mult.toFixed(1);
+    } else {
+      els.comboWrap.textContent = '';
+    }
+  }
+
+  /* =========================================================
+     ゲームループ
+  ========================================================= */
+  function gameTick(){
+    if(!state.running) return;
+    if(Math.random() < currentSpawnChance()){
+      spawnMole();
+    }
+  }
+
+  function countdownTick(){
+    if(!state.running) return;
+    state.timeLeft--;
+    if(state.timeLeft <= 0){
+      state.timeLeft = 0;
+      els.timeValue.textContent = state.timeLeft;
+      endGame();
+      return;
+    }
+    els.timeValue.textContent = state.timeLeft;
+    els.timeValue.classList.toggle('warn', state.timeLeft <= 10);
+  }
+
+  function startGame(){
+    ensureAudio();
+    sndStart();
+
+    state.running = true;
+    state.score = 0;
+    state.timeLeft = GAME_DURATION;
+    state.combo = 0;
+    state.startTime = Date.now();
+
+    els.scoreValue.textContent = '0';
+    els.timeValue.textContent = String(GAME_DURATION);
+    els.timeValue.classList.remove('warn');
+    els.comboWrap.textContent = '';
+    els.bestScoreHud.textContent = getBest();
+
+    els.startScreen.classList.add('hidden');
+    els.endScreen.classList.add('hidden');
+    els.gameScreen.classList.remove('hidden');
+
+    buildBoard();
+    scheduleLayoutUpdate();
+
+    if(state.tickTimer) clearInterval(state.tickTimer);
+    if(state.countdownTimer) clearInterval(state.countdownTimer);
+    state.tickTimer = setInterval(gameTick, 300);
+    state.countdownTimer = setInterval(countdownTick, 1000);
+  }
+
+  function endGame(){
+    state.running = false;
+    if(state.tickTimer){ clearInterval(state.tickTimer); state.tickTimer = null; }
+    if(state.countdownTimer){ clearInterval(state.countdownTimer); state.countdownTimer = null; }
+
+    state.holes.forEach(function(h){
+      if(h.hideTimer) clearTimeout(h.hideTimer);
+      h.active = false;
+      h.moleEl.classList.remove('up');
+    });
+
+    sndGameOver();
+
+    var best = getBest();
+    var isNew = state.score > best;
+    if(isNew){
+      setBest(state.score);
+      best = state.score;
+    }
+
+    els.finalScore.textContent = state.score;
+    els.bestScoreEnd.textContent = best;
+    els.newRecordLine.style.display = isNew ? 'block' : 'none';
+
+    els.gameScreen.classList.add('hidden');
+    els.endScreen.classList.remove('hidden');
+  }
+
+  /* =========================================================
+     初期化
+  ========================================================= */
+  els.bestScoreStart.textContent = getBest();
+  els.startBtn.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    startGame();
+  }, {passive:false});
+  els.retryBtn.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    startGame();
+  }, {passive:false});
+
+  scheduleLayoutUpdate();
+
+  // iOS Safariのラバーバンドスクロール等を防止
+  document.addEventListener('touchmove', function(e){ e.preventDefault(); }, {passive:false});
+
+})();
+</script>
+</body>
+</html>
