@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOVA BLASTER</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#000;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    min-height:100vh; height:100vh; overflow:hidden;
+    font-family:'Orbitron',monospace; color:#fff;
+  }
+  #wrap {
+    position:relative;
+    border:1px solid rgba(0,255,255,0.3);
+    box-shadow:0 0 40px rgba(0,255,255,0.2);
+    margin:0 auto;
+  }
+  /* 全canvasを同じwrap内に重ねる */
+  #wrap canvas {
+    position:absolute; top:0; left:0; display:block;
+  }
+  #bgCanvas  { z-index:1; }
+  #gameCanvas{ z-index:2; }
+
+  /* HUD */
+  #hud {
+    position:absolute; top:0; left:0; right:0;
+    z-index:5;
+    display:grid; grid-template-columns:1fr 1fr 1fr;
+    align-items:flex-start;
+    padding:10px 16px;
+    background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);
+    pointer-events:none;
+  }
+  .hi { font-size:11px; letter-spacing:2px; color:#0ff; text-shadow:0 0 8px #0ff; }
+  .hi:nth-child(2) { text-align:center; }
+  .hi:nth-child(3) { text-align:right; }
+  .hv { font-size:20px; font-weight:700; display:block; color:#fff; line-height:1.2; }
+
+  /* Overlay */
+  #overlay {
+    position:absolute; inset:0; z-index:10;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.82); backdrop-filter:blur(3px);
+  }
+  #overlay h1 {
+    font-size:clamp(28px,10vw,60px); font-weight:900; letter-spacing:6px;
+    background:linear-gradient(135deg,#0ff,#08f,#fff);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 0 16px rgba(0,200,255,0.9));
+    margin-bottom:8px;
+    text-align:center; width:100%;
+  }
+  .sub { font-family:'Share Tech Mono',monospace; color:#0af; letter-spacing:4px; font-size:12px; margin-bottom:32px; }
+  .big-score { font-size:44px; font-weight:700; margin-bottom:4px; }
+  .score-lbl { font-family:'Share Tech Mono',monospace; color:#0ff; font-size:11px; letter-spacing:3px; margin-bottom:32px; opacity:.7; }
+  .btn {
+    padding:12px 44px; font-family:'Orbitron',monospace; font-size:14px; font-weight:700;
+    letter-spacing:4px; color:#000;
+    background:linear-gradient(135deg,#0ff,#0af);
+    border:none; cursor:pointer; text-transform:uppercase;
+    clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);
+    transition:transform .15s, box-shadow .15s;
+  }
+  .btn:hover { transform:scale(1.06); box-shadow:0 0 28px rgba(0,255,255,0.7); }
+
+  /* Wave flash */
+  #waveBanner {
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    z-index:8; font-size:40px; font-weight:900;
+    color:#0ff; text-shadow:0 0 30px #0ff;
+    letter-spacing:6px; pointer-events:none;
+    opacity:0; transition:opacity .3s;
+  }
+  /* Controls hint */
+  #hint {
+    margin-top:8px; font-family:'Share Tech Mono',monospace;
+    font-size:10px; color:rgba(0,255,255,.35); letter-spacing:1px;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <canvas id="bgCanvas"></canvas>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="hud">
+    <div class="hi">SCORE<span class="hv" id="scoreEl">0</span></div>
+    <div class="hi">WAVE<span class="hv" id="waveEl">1</span></div>
+    <div class="hi">LIVES<span class="hv" id="livesEl">♦♦♦</span></div>
+  </div>
+
+  <div id="waveBanner"></div>
+
+  <div id="overlay" id="overlay">
+    <h1>NOVA BLASTER</h1>
+    <div class="sub">◈ SPACE SHOOTER ◈</div>
+    <button class="btn" id="startBtn">START</button>
+    <div id="hint">← → MOVE &nbsp;|&nbsp; SPACE SHOOT</div>
+  </div>
+</div>
+
+<script>
+// ===== CANVAS SETUP =====
+const bgCvs  = document.getElementById('bgCanvas');
+const bgCtx  = bgCvs.getContext('2d');
+const cvs    = document.getElementById('gameCanvas');
+const ctx    = cvs.getContext('2d');
+const wrap   = document.getElementById('wrap');
+
+const W = 420, H = 640;  // 固定サイズ
+bgCvs.width  = cvs.width  = W;
+bgCvs.height = cvs.height = H;
+wrap.style.width  = W + 'px';
+wrap.style.height = H + 'px';
+
+// ===== STARS =====
+const stars = Array.from({length:120}, () => ({
+  x: Math.random()*W, y: Math.random()*H,
+  r: Math.random()*1.4+0.3,
+  sp: Math.random()*0.7+0.2,
+  a: Math.random()*0.6+0.3
+}));
+
+function drawBg() {
+  bgCtx.clearRect(0,0,W,H);
+  bgCtx.fillStyle = '#000';
+  bgCtx.fillRect(0,0,W,H);
+  for (const s of stars) {
+    bgCtx.beginPath();
+    bgCtx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    bgCtx.fillStyle = `rgba(200,230,255,${s.a})`;
+    bgCtx.fill();
+    s.y += s.sp;
+    if (s.y > H) { s.y = 0; s.x = Math.random()*W; }
+  }
+}
+
+// ===== STATE =====
+let state = 'menu';
+let score, wave, lives;
+let player, bullets, enemies, particles;
+let keys = {}, touchX = null, autoShoot = false;
+let shootCD = 0, spawnCD = 0, spawnInterval;
+let waveClear = false;  // ウェーブクリア処理中フラグ
+let waveTotal, waveKilled;
+
+const CFGS = [
+  { col:'#ff3333', pts:10, hp:1, spd:1.4, sz:18 },
+  { col:'#ffaa00', pts:20, hp:2, spd:1.9, sz:16 },
+  { col:'#aa22ff', pts:30, hp:3, spd:1.1, sz:22 }
+];
+
+// ===== HUD =====
+function hud() {
+  document.getElementById('scoreEl').textContent = score;
+  document.getElementById('waveEl').textContent  = wave;
+  document.getElementById('livesEl').textContent = '♦'.repeat(Math.max(0,lives));
+}
+
+// ===== INIT =====
+function init() {
+  score=0; wave=1; lives=3;
+  player = { x:W/2, y:H-70, w:28, h:34, spd:5, inv:0 };
+  bullets=[]; enemies=[]; particles=[];
+  shootCD=0; spawnCD=0; waveClear=false;
+  waveTotal = 8; waveKilled = 0;
+  spawnInterval = 75;
+  hud();
+}
+
+// ===== OVERLAY =====
+const overlay = document.getElementById('overlay');
+function showOverlay(title, sub, scoreVal, waveTxt, btnTxt) {
+  overlay.innerHTML = `
+    <h1>${title}</h1>
+    <div class="sub">${sub}</div>
+    ${scoreVal!==null ? `<div class="big-score">${scoreVal}</div><div class="score-lbl">${waveTxt}</div>` : ''}
+    <button class="btn" id="startBtn">${btnTxt}</button>
+    <div id="hint">← → MOVE &nbsp;|&nbsp; SPACE SHOOT</div>`;
+  document.getElementById('startBtn').onclick = startGame;
+  overlay.style.display = 'flex';
+}
+document.getElementById('startBtn').onclick = startGame;
+
+function startGame() {
+  overlay.style.display = 'none';
+  init();
+  state = 'playing';
+}
+
+// ===== WAVE ANNOUNCE =====
+function waveFlash(n) {
+  const el = document.getElementById('waveBanner');
+  el.textContent = `WAVE  ${n}`;
+  el.style.opacity = '1';
+  setTimeout(()=> el.style.opacity='0', 1400);
+}
+
+// ===== AUDIO =====
+// ===== AUDIO (共有AudioContext) =====
+let _ac = null;
+function getAC() {
+  if (!_ac) _ac = new AudioContext();
+  if (_ac.state === 'suspended') _ac.resume();
+  return _ac;
+}
+
+function beep(freq, dur, vol=0.12) {
+  try {
+    const ac = getAC();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    const t = ac.currentTime;
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq*0.35, t+dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.start(t); o.stop(t+dur);
+  } catch(e){}
+}
+
+function boom() {
+  try {
+    const ac = getAC();
+    const len = Math.floor(ac.sampleRate * 0.28);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len, 1.5);
+    const src = ac.createBufferSource(), g = ac.createGain();
+    src.buffer=buf; src.connect(g); g.connect(ac.destination);
+    const t = ac.currentTime;
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.28);
+    src.start(t);
+  } catch(e){}
+}
+
+// ===== SPAWN =====
+function spawn() {
+  const tier = Math.min(2, Math.floor(Math.random()*(1 + wave*0.4)));
+  const c = CFGS[tier];
+  const hpBonus = Math.floor(wave/3);
+  const spdBonus = wave * 0.18;
+  enemies.push({
+    x: 24 + Math.random()*(W-48), y:-28,
+    w:c.sz, h:c.sz,
+    spd: c.spd + spdBonus,
+    hp: c.hp + hpBonus,
+    maxHp: c.hp + hpBonus,
+    col:c.col, pts:c.pts,
+    ang:0,
+    zz: Math.random()>.5 ? (Math.random()>.5?1:-1)*(1.2 + wave*0.05) : 0
+  });
+}
+
+// ===== PARTICLES =====
+function burst(x,y,col,n=14){
+  for(let i=0;i<n;i++){
+    const a=(Math.PI*2/n)*i + Math.random()*.5;
+    const sp=Math.random()*3+1;
+    particles.push({x,y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1, dec:.028+Math.random()*.02, r:Math.random()*3+1, col});
+  }
+}
+
+// ===== DRAW PLAYER =====
+function drawPlayer(p) {
+  if (p.inv>0 && Math.floor(p.inv/6)%2===1) return; // 点滅
+  ctx.save();
+  ctx.translate(p.x, p.y);
+
+  // エンジン炎
+  ctx.beginPath();
+  ctx.moveTo(-9, 14);
+  ctx.lineTo(0,  14 + 10 + Math.random()*8);
+  ctx.lineTo(9,  14);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,200,255,0.55)';
+  ctx.fill();
+
+  // 機体本体
+  ctx.shadowColor='#0ff'; ctx.shadowBlur=18;
+  ctx.fillStyle='#1ad4f5';
+  ctx.beginPath();
+  ctx.moveTo(0, -17);       // 先端
+  ctx.lineTo(14, 12);       // 右後ろ
+  ctx.lineTo(7,  8);
+  ctx.lineTo(-7, 8);
+  ctx.lineTo(-14,12);       // 左後ろ
+  ctx.closePath();
+  ctx.fill();
+
+  // 翼アクセント
+  ctx.fillStyle='#0af';
+  ctx.beginPath();
+  ctx.moveTo(-14,12); ctx.lineTo(-20,18); ctx.lineTo(-7,10); ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo( 14,12); ctx.lineTo( 20,18); ctx.lineTo( 7,10); ctx.closePath(); ctx.fill();
+
+  // コックピット
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#fff';
+  ctx.beginPath();
+  ctx.ellipse(0, -4, 4, 7, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ===== DRAW ENEMY =====
+function drawEnemy(e) {
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  e.ang += 0.05;
+  ctx.rotate(e.ang);
+
+  ctx.shadowColor = e.col; ctx.shadowBlur = 14;
+  ctx.fillStyle = e.col;
+
+  // ダイヤ型機体
+  ctx.beginPath();
+  ctx.moveTo(0,   -e.h);
+  ctx.lineTo(e.w*0.65, 0);
+  ctx.lineTo(0,    e.h);
+  ctx.lineTo(-e.w*0.65, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // 内側マーク
+  ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.moveTo(0, -e.h*0.45);
+  ctx.lineTo(e.w*0.28, 0);
+  ctx.lineTo(0,  e.h*0.45);
+  ctx.lineTo(-e.w*0.28, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
+  // HPバー（複数HP敵のみ）
+  if (e.maxHp > 1) {
+    const bw = e.w*1.8;
+    ctx.fillStyle='#300';
+    ctx.fillRect(e.x-bw/2, e.y+e.h+5, bw, 4);
+    ctx.fillStyle=e.col;
+    ctx.fillRect(e.x-bw/2, e.y+e.h+5, bw*(e.hp/e.maxHp), 4);
+  }
+}
+
+// ===== COLLISION (円形距離判定) =====
+function circleHit(ax,ay,r1, bx,by,r2){
+  const dx=ax-bx, dy=ay-by;
+  return dx*dx+dy*dy < (r1+r2)*(r1+r2);
+}
+
+// ===== GAME LOOP =====
+let raf;
+function loop() {
+  raf = requestAnimationFrame(loop);
+  drawBg();
+  ctx.clearRect(0,0,W,H);
+
+  if (state !== 'playing') return;
+
+  // ── 自機移動 ──
+  if (keys['ArrowLeft']||keys['a']) player.x -= player.spd;
+  if (keys['ArrowRight']||keys['d']) player.x += player.spd;
+  if (touchX!==null) {
+    const dx = touchX - player.x;
+    if (Math.abs(dx)>3) player.x += Math.sign(dx)*Math.min(player.spd*1.6, Math.abs(dx));
+  }
+  player.x = Math.max(18, Math.min(W-18, player.x));
+  if (player.inv>0) player.inv--;
+
+  // ── 射撃 ──
+  shootCD--;
+  if ((keys[' '] || autoShoot) && shootCD<=0) {
+    bullets.push({x:player.x, y:player.y-18, spd:11, w:4, h:14});
+    beep(780, 0.09);
+    shootCD = 11;
+  }
+
+  // ── 敵スポーン ──
+  spawnCD--;
+  if (spawnCD<=0 && waveKilled+enemies.length < waveTotal) {
+    spawn();
+    spawnCD = spawnInterval;
+  }
+
+  // ── 弾 ──
+  bullets = bullets.filter(b => {
+    b.y -= b.spd;
+    if (b.y < -20) return false;
+
+    for (let i=enemies.length-1; i>=0; i--) {
+      const e = enemies[i];
+      if (circleHit(b.x,b.y,5, e.x,e.y,e.w*0.85)) {
+        e.hp--;
+        if (e.hp<=0) {
+          burst(e.x,e.y,e.col);
+          boom();
+          score += e.pts * wave;
+          waveKilled++;
+          enemies.splice(i,1);
+          hud();
+        }
+        return false;
+      }
+    }
+    // 弾描画
+    ctx.shadowColor='#0ff'; ctx.shadowBlur=8;
+    ctx.fillStyle='#0ff';
+    ctx.fillRect(b.x-b.w/2, b.y-b.h/2, b.w, b.h);
+    ctx.shadowBlur=0;
+    return true;
+  });
+
+  // ── 敵移動・描画 ──
+  enemies = enemies.filter(e => {
+    e.y += e.spd;
+    e.x += e.zz * Math.sin(e.y*0.045) * 1.8;
+
+    if (e.y > H+30) {
+      lives--; hud();
+      if (lives<=0) gameOver();
+      return false;
+    }
+
+    // 自機衝突
+    if (player.inv===0 && circleHit(player.x,player.y,12, e.x,e.y,e.w*0.8)) {
+      burst(e.x,e.y,e.col,22);
+      boom();
+      lives--; player.inv=90; hud();
+      enemies.splice(enemies.indexOf(e),1);
+      if (lives<=0) gameOver();
+      return false;
+    }
+
+    drawEnemy(e);
+    return true;
+  });
+
+  // ── ウェーブクリア ──
+  if (!waveClear && waveKilled>=waveTotal && enemies.length===0) {
+    waveClear = true;
+    setTimeout(() => {
+      wave++;
+      // 無限ステージ：波ごとに敵数・速度・HP増加
+      waveTotal    = 8 + wave * 3;
+      waveKilled   = 0;
+      spawnInterval = Math.max(18, 80 - wave * 4);
+      spawnCD      = 60;
+      waveClear    = false;
+      hud();
+      waveFlash(wave);
+    }, 1200);  // クリア後1.2秒待ってから次ウェーブ
+  }
+
+  // ── パーティクル ──
+  particles = particles.filter(p => {
+    p.x+=p.vx; p.y+=p.vy; p.life-=p.dec;
+    if(p.life<=0) return false;
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.col;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha=1;
+    return true;
+  });
+
+  // ── 自機描画 ──
+  drawPlayer(player);
+}
+
+function gameOver() {
+  state = 'gameover';
+  setTimeout(()=>{
+    showOverlay('GAME OVER','◈ FINAL SCORE ◈', score, `WAVE ${wave} REACHED`, 'RETRY');
+  }, 600);
+}
+
+// ===== INPUT =====
+window.addEventListener('keydown', e => {
+  keys[e.key]=true;
+  if(e.key===' ') e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key]=false; });
+
+cvs.addEventListener('touchstart', e => {
+  e.preventDefault();
+  touchX = e.touches[0].clientX - cvs.getBoundingClientRect().left;
+  autoShoot=true;
+},{passive:false});
+cvs.addEventListener('touchmove', e => {
+  e.preventDefault();
+  touchX = e.touches[0].clientX - cvs.getBoundingClientRect().left;
+},{passive:false});
+cvs.addEventListener('touchend', ()=>{ touchX=null; autoShoot=false; });
+
+// ===== START =====
+loop();
+</script>
+</body>
+</html>
