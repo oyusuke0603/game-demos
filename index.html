@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>32のブラウザゲーム 無料体験版</title>
+<style>
+  :root{
+    --bg:#0f1220;
+    --bg-soft:#161a2e;
+    --card:#1c2140;
+    --card-hover:#242a52;
+    --text:#f1f2fb;
+    --text-dim:#a8adc9;
+    --accent:#ff5e7e;
+    --accent2:#5ee8d5;
+    --accent3:#ffd166;
+    --border:rgba(255,255,255,0.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(94,232,213,0.15), transparent 45%),
+      radial-gradient(circle at 85% 10%, rgba(255,94,126,0.18), transparent 45%),
+      var(--bg);
+    color:var(--text);
+    font-family:"Hiragino Sans","Yu Gothic UI","Segoe UI",sans-serif;
+    line-height:1.7;
+  }
+  a{color:inherit;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px;}
+
+  header.hero{
+    padding:72px 0 56px;
+    text-align:center;
+    position:relative;
+    overflow:hidden;
+  }
+  header.hero::before{
+    content:"";
+    position:absolute;
+    inset:-40% -10% auto -10%;
+    height:340px;
+    background:linear-gradient(120deg, rgba(255,94,126,0.25), rgba(94,232,213,0.2));
+    filter:blur(60px);
+    z-index:0;
+  }
+  .hero-inner{position:relative;z-index:1;}
+  .eyebrow{
+    display:inline-block;
+    font-size:13px;
+    letter-spacing:0.14em;
+    color:var(--accent2);
+    background:rgba(94,232,213,0.1);
+    border:1px solid rgba(94,232,213,0.3);
+    padding:6px 16px;
+    border-radius:999px;
+    margin-bottom:22px;
+  }
+  h1{
+    font-size:clamp(28px,5vw,48px);
+    margin:0 0 18px;
+    font-weight:800;
+    letter-spacing:0.01em;
+  }
+  h1 .accent{
+    background:linear-gradient(90deg,var(--accent),var(--accent3));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .hero p{
+    color:var(--text-dim);
+    max-width:640px;
+    margin:0 auto;
+    font-size:16px;
+  }
+  .hero-stats{
+    display:flex;
+    justify-content:center;
+    gap:36px;
+    margin-top:36px;
+    flex-wrap:wrap;
+  }
+  .stat{text-align:center;}
+  .stat b{display:block;font-size:26px;color:var(--accent3);}
+  .stat span{font-size:12px;color:var(--text-dim);}
+
+  section.games{padding:20px 0 80px;}
+  .section-title{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:28px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .section-title h2{font-size:22px;margin:0;}
+  .section-title span{color:var(--text-dim);font-size:13px;}
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+    gap:20px;
+  }
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    overflow:hidden;
+    text-decoration:none;
+    color:var(--text);
+    display:flex;
+    flex-direction:column;
+    transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
+    position:relative;
+  }
+  .card:hover{
+    transform:translateY(-6px);
+    background:var(--card-hover);
+    box-shadow:0 16px 32px rgba(0,0,0,0.35);
+  }
+  .card .thumb-wrap{
+    aspect-ratio:4/3;
+    background:#0c0e1c;
+    overflow:hidden;
+    position:relative;
+  }
+  .card .thumb-wrap img{
+    width:100%;height:100%;object-fit:cover;
+    display:block;
+    transition:transform .3s ease;
+  }
+  .card:hover .thumb-wrap img{transform:scale(1.07);}
+  .card .no-thumb{
+    width:100%;height:100%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:36px;
+    background:linear-gradient(135deg, rgba(255,94,126,0.25), rgba(94,232,213,0.2));
+  }
+  .badge{
+    position:absolute;top:10px;left:10px;
+    background:rgba(15,18,32,0.75);
+    backdrop-filter:blur(4px);
+    color:var(--accent3);
+    font-size:11px;
+    font-weight:700;
+    padding:3px 9px;
+    border-radius:999px;
+    border:1px solid rgba(255,209,102,0.4);
+  }
+  .card .body{
+    padding:14px 16px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    flex:1;
+  }
+  .card h3{
+    font-size:15px;
+    margin:0;
+    font-weight:700;
+  }
+  .card .play{
+    margin-top:auto;
+    font-size:12.5px;
+    color:var(--accent2);
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .card .play::after{content:"→";transition:transform .18s ease;}
+  .card:hover .play::after{transform:translateX(4px);}
+
+  footer{
+    border-top:1px solid var(--border);
+    padding:48px 0 60px;
+    background:var(--bg-soft);
+  }
+  .footer-grid{
+    display:flex;
+    flex-wrap:wrap;
+    gap:32px;
+    justify-content:space-between;
+    align-items:flex-start;
+  }
+  .footer-block h4{
+    font-size:13px;
+    letter-spacing:0.08em;
+    color:var(--text-dim);
+    margin:0 0 14px;
+    text-transform:uppercase;
+  }
+  .footer-links{display:flex;flex-direction:column;gap:10px;}
+  .footer-links a{
+    text-decoration:none;
+    font-size:14.5px;
+    color:var(--text);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:9px 14px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    transition:border-color .18s ease, transform .18s ease;
+  }
+  .footer-links a:hover{
+    border-color:var(--accent2);
+    transform:translateX(3px);
+  }
+  .footer-note{
+    margin-top:36px;
+    font-size:12.5px;
+    color:var(--text-dim);
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <span class="eyebrow">FREE TO PLAY DEMO</span>
+    <h1>ブラウザで遊べる<br><span class="accent">ミニゲーム32選</span>、全部無料体験</h1>
+    <p>ダウンロード不要・登録不要。気に入ったら公式ファイルをBASEショップでお迎えできます。まずは気軽に遊んでみてください。</p>
+    <div class="hero-stats">
+      <div class="stat"><b>32</b><span>タイトル数</span></div>
+      <div class="stat"><b>¥0</b><span>体験版</span></div>
+      <div class="stat"><b>0秒</b><span>インストール</span></div>
+    </div>
+  </div>
+</header>
+
+<section class="games">
+  <div class="wrap">
+    <div class="section-title">
+      <h2>ゲーム一覧</h2>
+      <span>クリックしてそのまま無料でプレイできます</span>
+    </div>
+    <div class="grid" id="game-grid"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-block">
+        <h4>もっと楽しむ</h4>
+        <div class="footer-links">
+          <a href="https://oyusuke.base.shop/" target="_blank" rel="noopener">BASEショップで購入する</a>
+          <a href="https://note.com/note_suke/" target="_blank" rel="noopener">note で制作の裏側を読む</a>
+          <a href="https://store.line.me/stickershop/author/5546482/ja" target="_blank" rel="noopener">LINEスタンプを見る</a>
+        </div>
+      </div>
+    </div>
+    <p class="footer-note">本サイトは無料体験版です。© note_suke</p>
+  </div>
+</footer>
+
+<script>
+const games = [{"id":"01","title":"神経衰弱（メモリーカードゲーム）","thumb":"thumb.jpg"},{"id":"02","title":"神経衰弱（メモリーカードゲーム）スマホ版","thumb":"thumb.png"},{"id":"03","title":"七並べ","thumb":"thumb.jpg"},{"id":"04","title":"ビンゴゲーム（球体型）","thumb":"thumb.jpg"},{"id":"05","title":"ビンゴゲーム（デジタル型）","thumb":"thumb.jpg"},{"id":"06","title":"チェス","thumb":"thumb.jpg"},{"id":"07","title":"リバーシ（オセロ）","thumb":"thumb.jpg"},{"id":"08","title":"旗上げゲーム（赤色・白色クイズ）","thumb":"thumb.jpg"},{"id":"09","title":"ババ抜き","thumb":"thumb.jpg"},{"id":"10","title":"パズルゲーム","thumb":"thumb.jpg"},{"id":"11","title":"ピンボール","thumb":"thumb.jpg"},{"id":"12","title":"タイピングゲーム（五十音順）","thumb":"thumb.jpg"},{"id":"13","title":"タイピングゲーム（動物編）","thumb":"thumb.jpg"},{"id":"14","title":"エイリアンシューティング","thumb":"thumb.jpg"},{"id":"15","title":"縄跳び","thumb":"thumb.jpg"},{"id":"16","title":"エアホッケー","thumb":"thumb.jpg"},{"id":"17","title":"おはじき","thumb":"thumb.jpg"},{"id":"18","title":"ビリヤード","thumb":"thumb.jpg"},{"id":"19","title":"花札","thumb":"thumb.jpg"},{"id":"20","title":"将棋","thumb":"thumb.jpg"},{"id":"21","title":"スペースシューター","thumb":"thumb.jpg"},{"id":"22","title":"ランニング","thumb":"thumb.jpg"},{"id":"23","title":"バスケット","thumb":"thumb.jpg"},{"id":"24","title":"リフティング","thumb":"thumb.jpg"},{"id":"25","title":"お祭りの射的","thumb":"thumb.jpg"},{"id":"26","title":"お祭りの金魚すくい","thumb":"thumb.jpg"},{"id":"27","title":"お祭りの輪投げ","thumb":"thumb.jpg"},{"id":"28","title":"ボールのパズル","thumb":"thumb.jpg"},{"id":"29","title":"動物のパズル","thumb":"thumb.jpg"},{"id":"30","title":"果物のパズル","thumb":"thumb.jpg"},{"id":"31","title":"ポコポコもぐらたたき","thumb":"thumb.png"},{"id":"32","title":"タイピングシューティング","thumb":"thumb.jpg"}];
+
+const grid = document.getElementById('game-grid');
+grid.innerHTML = games.map(g => {
+  const thumb = g.thumb
+    ? `<img src="games/${g.id}/${g.thumb}" alt="${g.title}" loading="lazy">`
+    : `<div class="no-thumb">🎮</div>`;
+  return `
+    <a class="card" href="games/${g.id}/index.html">
+      <div class="thumb-wrap">
+        <span class="badge">No.${g.id}</span>
+        ${thumb}
+      </div>
+      <div class="body">
+        <h3>${g.title}</h3>
+        <span class="play">無料で遊ぶ</span>
+      </div>
+    </a>
+  `;
+}).join('');
+</script>
+
+</body>
+</html>
