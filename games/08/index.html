@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旗上げゲーム クイズ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zen+Kurenaido&family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
+
+  :root {
+    --red: #e63946;
+    --white-flag: #f8f9fa;
+    --navy: #1d3557;
+    --sky: #a8dadc;
+    --gold: #ffd166;
+    --green: #06d6a0;
+    --bg: #e8f4f8;
+    --shadow: rgba(29,53,87,0.18);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    background: linear-gradient(160deg, #c7e9f3 0%, #e8f4f8 40%, #fde8c8 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* ===== HEADER ===== */
+  header {
+    width: 100%;
+    background: var(--navy);
+    color: #fff;
+    text-align: center;
+    padding: 14px 20px 10px;
+    box-shadow: 0 4px 18px var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: -30px; left: -60px;
+    width: 200px; height: 200px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+  }
+  header h1 {
+    font-size: clamp(1.4rem, 4vw, 2.1rem);
+    font-weight: 900;
+    letter-spacing: .06em;
+    font-family: 'Zen Kurenaido', serif;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  header p { font-size: .85rem; opacity: .75; margin-top: 2px; }
+
+  /* ===== SCORE BAR ===== */
+  .scorebar {
+    display: flex;
+    gap: 20px;
+    margin: 16px auto 0;
+    background: var(--navy);
+    border-radius: 50px;
+    padding: 8px 28px;
+    box-shadow: 0 4px 16px var(--shadow);
+    color: #fff;
+    font-size: .95rem;
+    font-weight: 700;
+  }
+  .scorebar span { display: flex; align-items: center; gap: 6px; }
+  .scorebar .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-q  { background: var(--gold); }
+  .dot-ok { background: var(--green); }
+  .dot-ng { background: var(--red); }
+
+  /* ===== QUIZ CARD ===== */
+  .quiz-card {
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 8px 32px var(--shadow);
+    padding: 22px 28px 18px;
+    margin: 18px auto 0;
+    max-width: 520px;
+    width: calc(100% - 32px);
+    text-align: center;
+    font-size: clamp(1rem, 3.5vw, 1.25rem);
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.5;
+    min-height: 82px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .15s;
+    position: relative;
+  }
+  .quiz-card .qnum {
+    position: absolute;
+    top: -13px; left: 18px;
+    background: var(--gold);
+    color: var(--navy);
+    font-size: .8rem;
+    font-weight: 900;
+    padding: 3px 12px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  }
+
+  /* ===== STAGE ===== */
+  .stage {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: clamp(10px, 5vw, 60px);
+    margin: 10px auto 0;
+    width: 100%;
+    max-width: 600px;
+    padding: 0 10px;
+  }
+
+  /* ===== FIGURE ===== */
+  .figure-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    max-width: 180px;
+  }
+  .figure-label {
+    font-size: .75rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 4px;
+    opacity: .7;
+    letter-spacing: .05em;
+  }
+
+  /* SVG figure container */
+  .figure-svg-wrap {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  .figure-svg-wrap svg {
+    width: 100%;
+    max-width: 170px;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Flag animation groups */
+  .flag-red, .flag-white {
+    transform-origin: top center;
+    transition: transform .4s cubic-bezier(.34,1.56,.64,1);
+  }
+
+  /* Arms */
+  .arm-right, .arm-left {
+    transform-origin: shoulder center;
+    transition: transform .4s cubic-bezier(.34,1.56,.64,1);
+  }
+
+  /* ===== ANSWER BUTTONS ===== */
+  .btn-area {
+    display: flex;
+    gap: 20px;
+    margin: 16px auto 0;
+    justify-content: center;
+    padding: 0 10px;
+  }
+  .btn-flag {
+    flex: 1;
+    max-width: 200px;
+    padding: 15px 10px;
+    border: none;
+    border-radius: 18px;
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    font-size: clamp(.95rem, 3vw, 1.1rem);
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+    letter-spacing: .05em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-flag:active { transform: scale(.95); }
+  .btn-red {
+    background: linear-gradient(135deg, #ff4d6d, #c9184a);
+    color: #fff;
+  }
+  .btn-white {
+    background: linear-gradient(135deg, #fff, #dde1e7);
+    color: var(--navy);
+    border: 2px solid #b0bec5;
+  }
+  .btn-flag:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0,0,0,0.2); }
+  .btn-flag:disabled { opacity: .5; cursor: default; transform: none; }
+
+  /* ===== RESULT OVERLAY ===== */
+  .result-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(29,53,87,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s;
+  }
+  .result-overlay.show { opacity: 1; pointer-events: all; }
+  .result-box {
+    background: #fff;
+    border-radius: 28px;
+    padding: 36px 44px;
+    text-align: center;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.28);
+    transform: scale(.85);
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+    max-width: 360px;
+    width: 90%;
+  }
+  .result-overlay.show .result-box { transform: scale(1); }
+  .result-emoji { font-size: 3.5rem; display: block; margin-bottom: 10px; }
+  .result-title { font-size: 1.6rem; font-weight: 900; margin-bottom: 6px; }
+  .result-title.ok  { color: var(--green); }
+  .result-title.ng  { color: var(--red); }
+  .result-desc { color: #666; font-size: .95rem; margin-bottom: 20px; line-height: 1.55; }
+  .btn-next {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 50px;
+    padding: 12px 36px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform .15s, background .15s;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  }
+  .btn-next:hover { background: #2c4a7c; transform: translateY(-2px); }
+
+  /* ===== FINAL RESULT ===== */
+  .final-box { display: none; }
+  .final-box.show { display: block; }
+  .star-score { font-size: 2rem; letter-spacing: .1em; margin: 8px 0; color: var(--gold); }
+  .score-text { font-size: 1.1rem; font-weight: 700; color: var(--navy); }
+  .btn-restart {
+    background: linear-gradient(135deg, var(--gold), #f4a261);
+    color: var(--navy);
+    border: none;
+    border-radius: 50px;
+    padding: 13px 40px;
+    font-size: 1.1rem;
+    font-weight: 900;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 18px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    transition: transform .15s;
+  }
+  .btn-restart:hover { transform: translateY(-2px); }
+
+  /* ===== PROGRESS BAR ===== */
+  .progress-bar-wrap {
+    width: calc(100% - 32px);
+    max-width: 520px;
+    margin: 12px auto 0;
+    background: #dde1e7;
+    border-radius: 10px;
+    height: 7px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--sky), var(--navy));
+    border-radius: 10px;
+    transition: width .4s;
+  }
+
+  /* ===== GROUND ===== */
+  .ground {
+    width: calc(100% - 20px);
+    max-width: 580px;
+    height: 18px;
+    background: linear-gradient(180deg, #a8c5a0 0%, #7aa17a 100%);
+    border-radius: 0 0 14px 14px;
+    margin: 0 auto 6px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  }
+
+  /* shake animation */
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-8px)}
+    40%{transform:translateX(8px)}
+    60%{transform:translateX(-5px)}
+    80%{transform:translateX(5px)}
+  }
+  .shake { animation: shake .4s ease; }
+
+  @keyframes pop {
+    0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)}
+  }
+  .pop { animation: pop .35s ease; }
+
+  footer {
+    margin: 14px auto 20px;
+    font-size: .75rem;
+    color: rgba(29,53,87,.45);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🚩 旗上げゲーム クイズ 🚩</h1>
+  <p>正しい旗を上げよう！</p>
+</header>
+
+<div class="scorebar">
+  <span><span class="dot dot-q"></span>問題 <span id="qdisp">1 / 10</span></span>
+  <span><span class="dot dot-ok"></span>正解 <span id="okdisp">0</span></span>
+  <span><span class="dot dot-ng"></span>不正解 <span id="ngdisp">0</span></span>
+</div>
+
+<div class="progress-bar-wrap"><div class="progress-bar" id="progress" style="width:10%"></div></div>
+
+<div class="quiz-card" id="quizCard">
+  <span class="qnum" id="qnum">Q1</span>
+  <span id="quizText">読み込み中...</span>
+</div>
+
+<div class="stage">
+  <!-- LEFT FIGURE: holds WHITE flag in right hand (screen right of figure = left side of stage) -->
+  <div class="figure-wrap">
+    <div class="figure-label">← 白旗</div>
+    <div class="figure-svg-wrap" id="figureWrap">
+      <!-- SVG Figure -->
+      <svg id="figureSvg" viewBox="0 0 160 220" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="faceGrad" cx="50%" cy="40%" r="55%">
+            <stop offset="0%" stop-color="#fde8d0"/>
+            <stop offset="100%" stop-color="#f0c9a0"/>
+          </radialGradient>
+          <radialGradient id="bodyGrad" cx="50%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#4a90d9"/>
+            <stop offset="100%" stop-color="#1d3557"/>
+          </radialGradient>
+        </defs>
+
+        <!-- ===== WHITE FLAG (right arm of figure = LEFT side of stage) ===== -->
+        <!-- Pole for white flag (figure's right = screen left) -->
+        <g id="whiteArmGroup" class="arm-left">
+          <!-- Arm -->
+          <line id="whiteArm" x1="68" y1="110" x2="30" y2="138" stroke="#f0c9a0" stroke-width="9" stroke-linecap="round"/>
+          <!-- Hand -->
+          <circle cx="30" cy="140" r="7" fill="#fde8d0" stroke="#e8b89a" stroke-width="1.5"/>
+          <!-- Pole -->
+          <line x1="30" y1="140" x2="10" y2="70" stroke="#8B6914" stroke-width="4" stroke-linecap="round"/>
+          <!-- White flag -->
+          <g id="whiteFlagGroup" class="flag-white" style="transform-origin:10px 70px">
+            <polygon points="10,70 48,82 10,94" fill="#f8f9fa" stroke="#b0bec5" stroke-width="1.5"/>
+          </g>
+        </g>
+
+        <!-- ===== RED FLAG (left arm of figure = RIGHT side of stage) ===== -->
+        <g id="redArmGroup" class="arm-right">
+          <!-- Arm -->
+          <line id="redArm" x1="92" y1="110" x2="130" y2="138" stroke="#f0c9a0" stroke-width="9" stroke-linecap="round"/>
+          <!-- Hand -->
+          <circle cx="130" cy="140" r="7" fill="#fde8d0" stroke="#e8b89a" stroke-width="1.5"/>
+          <!-- Pole -->
+          <line x1="130" y1="140" x2="150" y2="70" stroke="#8B6914" stroke-width="4" stroke-linecap="round"/>
+          <!-- Red flag -->
+          <g id="redFlagGroup" class="flag-red" style="transform-origin:150px 70px">
+            <polygon points="150,70 112,82 150,94" fill="#e63946" stroke="#c9184a" stroke-width="1.5"/>
+          </g>
+        </g>
+
+        <!-- Body (uniform) -->
+        <rect x="58" y="102" width="44" height="62" rx="10" fill="url(#bodyGrad)"/>
+        <!-- Collar -->
+        <rect x="73" y="102" width="14" height="12" rx="3" fill="#fff" opacity=".4"/>
+        <!-- Belt -->
+        <rect x="58" y="148" width="44" height="7" rx="3" fill="#f4a261" opacity=".85"/>
+        <!-- Buttons -->
+        <circle cx="80" cy="120" r="3" fill="#fff" opacity=".5"/>
+        <circle cx="80" cy="133" r="3" fill="#fff" opacity=".5"/>
+
+        <!-- Legs -->
+        <rect x="60" y="162" width="16" height="44" rx="8" fill="#1d3557"/>
+        <rect x="84" y="162" width="16" height="44" rx="8" fill="#1d3557"/>
+        <!-- Shoes -->
+        <ellipse cx="68" cy="206" rx="12" ry="6" fill="#333"/>
+        <ellipse cx="92" cy="206" rx="12" ry="6" fill="#333"/>
+
+        <!-- Head -->
+        <ellipse cx="80" cy="78" rx="26" ry="28" fill="url(#faceGrad)" stroke="#e8b89a" stroke-width="1.5"/>
+        <!-- Hair -->
+        <ellipse cx="80" cy="54" rx="26" ry="12" fill="#3a2505"/>
+        <!-- Eyes -->
+        <ellipse cx="70" cy="77" rx="5" ry="6" fill="#fff"/>
+        <ellipse cx="90" cy="77" rx="5" ry="6" fill="#fff"/>
+        <circle cx="71" cy="79" r="3.5" fill="#2c1810"/>
+        <circle cx="91" cy="79" r="3.5" fill="#2c1810"/>
+        <circle cx="72.5" cy="77.5" r="1.2" fill="#fff"/>
+        <circle cx="92.5" cy="77.5" r="1.2" fill="#fff"/>
+        <!-- Mouth -->
+        <path d="M72 90 Q80 97 88 90" stroke="#c27050" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- Blush -->
+        <ellipse cx="61" cy="86" rx="6" ry="4" fill="#ffb3a7" opacity=".45"/>
+        <ellipse cx="99" cy="86" rx="6" ry="4" fill="#ffb3a7" opacity=".45"/>
+        <!-- Eyebrows -->
+        <path d="M65 70 Q70 67 75 70" stroke="#3a2505" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <path d="M85 70 Q90 67 95 70" stroke="#3a2505" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="figure-label">赤旗 →</div>
+  </div>
+</div>
+
+<div class="ground"></div>
+
+<div class="btn-area">
+  <button class="btn-flag btn-white" id="btnWhite" onclick="answer('white')">
+    ⬜ 白旗を上げる
+  </button>
+  <button class="btn-flag btn-red" id="btnRed" onclick="answer('red')">
+    🚩 赤旗を上げる
+  </button>
+</div>
+
+<!-- Result Overlay -->
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-box" id="resultBox">
+    <span class="result-emoji" id="resultEmoji"></span>
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-desc" id="resultDesc"></div>
+
+    <!-- 通常の次へボタン -->
+    <button class="btn-next" id="btnNext" onclick="nextQuestion()">次の問題へ →</button>
+
+    <!-- 最終結果 -->
+    <div class="final-box" id="finalBox">
+      <div class="star-score" id="starScore"></div>
+      <div class="score-text" id="scoreText"></div>
+      <button class="btn-restart" onclick="restartGame()">🔄 もう一度遊ぶ</button>
+    </div>
+  </div>
+</div>
+
+<footer>🚩 旗上げゲーム クイズ &copy; 2025</footer>
+
+<script>
+// ===== QUIZ DATA =====
+const quizData = [
+  { q: "赤いものはどっち？\n「りんご」 vs 「バナナ」", a: "red", hint: "りんごは赤、バナナは黄色ですね！" },
+  { q: "「雪」の色は？", a: "white", hint: "雪は白い結晶でできています❄️" },
+  { q: "止まれの標識の色は？", a: "red", hint: "STOP（止まれ）サインは赤です🛑" },
+  { q: "ウェディングドレスの色は？", a: "white", hint: "結婚式のドレスは白が伝統的です👰" },
+  { q: "消防車の色は？", a: "red", hint: "消防車は鮮やかな赤色ですね🚒" },
+  { q: "白紙のノートの色は？", a: "white", hint: "何も書いていないノートは白いですね📄" },
+  { q: "イチゴの熟した色は？", a: "red", hint: "熟したイチゴは赤くなります🍓" },
+  { q: "砂糖の色は？", a: "white", hint: "一般的な砂糖は白色です🍬" },
+  { q: "日本の国旗の丸の色は？", a: "red", hint: "日の丸は白地に赤の円ですね🎌" },
+  { q: "牛乳の色は？", a: "white", hint: "牛乳は白色の液体です🥛" },
+  { q: "太陽の色は（見た目）？", a: "red", hint: "夕日は赤く見えることが多いですね🌅" },
+  { q: "塩の色は？", a: "white", hint: "塩は白い粒状の調味料ですね🧂" },
+  { q: "血液の色は？", a: "red", hint: "血液は赤い色をしています🩸" },
+  { q: "綿（コットン）の花の色は？", a: "white", hint: "綿は収穫時に白いふわふわになります☁️" },
+  { q: "サンタクロースの服の色は？", a: "red", hint: "サンタさんは赤い服を着ています🎅" },
+];
+
+// ===== STATE =====
+let questions = [];
+let currentIdx = 0;
+let score = 0;
+let wrong = 0;
+let answered = false;
+
+// ===== AUDIO (Web Audio API) =====
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  return audioCtx;
+}
+
+function playCorrect() {
+  const ctx = getAudio();
+  const notes = [523, 659, 784, 1046]; // C5 E5 G5 C6
+  notes.forEach((freq, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine';
+    o.frequency.value = freq;
+    const t = ctx.currentTime + i * 0.12;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.25, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.start(t); o.stop(t + 0.36);
+  });
+}
+
+function playWrong() {
+  const ctx = getAudio();
+  [[220, 0], [196, 0.2]].forEach(([freq, delay]) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sawtooth';
+    o.frequency.value = freq;
+    const t = ctx.currentTime + delay;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.2, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    o.start(t); o.stop(t + 0.41);
+  });
+}
+
+function playFanfare() {
+  const ctx = getAudio();
+  const seq = [523,659,784,659,784,1046];
+  seq.forEach((freq, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'triangle';
+    o.frequency.value = freq;
+    const t = ctx.currentTime + i * 0.15;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    o.start(t); o.stop(t + 0.46);
+  });
+}
+
+// ===== FIGURE ARM / FLAG CONTROL =====
+function setFigureState(state) {
+  // state: 'idle' | 'red' | 'white' | 'both'
+  const redArm   = document.getElementById('redArmGroup');
+  const whiteArm = document.getElementById('whiteArmGroup');
+  const redFlag  = document.getElementById('redFlagGroup');
+  const whiteFlag= document.getElementById('whiteFlagGroup');
+
+  // Reset
+  redArm.style.transform   = '';
+  whiteArm.style.transform = '';
+  redFlag.style.transform  = '';
+  whiteFlag.style.transform= '';
+
+  if (state === 'red') {
+    // Raise red arm (rotate left = counter-clockwise around shoulder)
+    redArm.style.transform   = 'rotate(-70deg)';
+    redArm.style.transformOrigin = '92px 110px';
+    // Flag stays on pole — pole goes up so flag tip flips up
+    redFlag.style.transform  = 'rotate(-20deg)';
+    redFlag.style.transformOrigin = '150px 70px';
+  } else if (state === 'white') {
+    whiteArm.style.transform = 'rotate(70deg)';
+    whiteArm.style.transformOrigin = '68px 110px';
+    whiteFlag.style.transform = 'rotate(20deg)';
+    whiteFlag.style.transformOrigin = '10px 70px';
+  } else if (state === 'both') {
+    redArm.style.transform   = 'rotate(-70deg)';
+    redArm.style.transformOrigin = '92px 110px';
+    whiteArm.style.transform = 'rotate(70deg)';
+    whiteArm.style.transformOrigin = '68px 110px';
+  }
+}
+
+// ===== GAME INIT =====
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function startGame() {
+  questions = shuffle(quizData).slice(0, 10);
+  currentIdx = 0; score = 0; wrong = 0;
+  updateScorebar();
+  setFigureState('idle');
+  showQuestion();
+}
+
+function showQuestion() {
+  answered = false;
+  const q = questions[currentIdx];
+  document.getElementById('qnum').textContent = `Q${currentIdx + 1}`;
+  document.getElementById('quizText').textContent = q.q;
+  document.getElementById('qdisp').textContent = `${currentIdx + 1} / ${questions.length}`;
+  document.getElementById('progress').style.width = `${((currentIdx + 1) / questions.length) * 100}%`;
+  document.getElementById('btnWhite').disabled = false;
+  document.getElementById('btnRed').disabled = false;
+  setFigureState('idle');
+
+  // Card pop
+  const card = document.getElementById('quizCard');
+  card.classList.remove('pop');
+  void card.offsetWidth;
+  card.classList.add('pop');
+}
+
+function updateScorebar() {
+  document.getElementById('okdisp').textContent = score;
+  document.getElementById('ngdisp').textContent = wrong;
+}
+
+function answer(choice) {
+  if (answered) return;
+  answered = true;
+  getAudio(); // unlock audio context
+
+  document.getElementById('btnWhite').disabled = true;
+  document.getElementById('btnRed').disabled = true;
+
+  const q = questions[currentIdx];
+  const correct = (choice === q.a);
+
+  // Raise flag(s)
+  if (correct) {
+    setFigureState(q.a);
+    score++;
+    playCorrect();
+  } else {
+    // Show correct flag but shake
+    setFigureState(q.a);
+    wrong++;
+    playWrong();
+    setTimeout(() => {
+      document.getElementById('figureSvg').classList.add('shake');
+      setTimeout(() => document.getElementById('figureSvg').classList.remove('shake'), 500);
+    }, 300);
+  }
+
+  updateScorebar();
+
+  // Show result overlay
+  setTimeout(() => showResult(correct, q), 700);
+}
+
+function showResult(correct, q) {
+  const overlay   = document.getElementById('resultOverlay');
+  const emoji     = document.getElementById('resultEmoji');
+  const title     = document.getElementById('resultTitle');
+  const desc      = document.getElementById('resultDesc');
+  const btnNext   = document.getElementById('btnNext');
+  const finalBox  = document.getElementById('finalBox');
+
+  emoji.textContent = correct ? '🎉' : '😢';
+  title.textContent = correct ? '正解！' : '不正解…';
+  title.className = 'result-title ' + (correct ? 'ok' : 'ng');
+  desc.textContent = q.hint;
+
+  const isLast = (currentIdx === questions.length - 1);
+
+  if (isLast) {
+    btnNext.style.display = 'none';
+    finalBox.classList.add('show');
+    const pct = Math.round((score / questions.length) * 100);
+    const stars = pct >= 90 ? '⭐⭐⭐' : pct >= 60 ? '⭐⭐' : '⭐';
+    document.getElementById('starScore').textContent = stars;
+    document.getElementById('scoreText').textContent = `${questions.length}問中 ${score}問正解！（${pct}%）`;
+    if (score === questions.length) playFanfare();
+  } else {
+    btnNext.style.display = '';
+    finalBox.classList.remove('show');
+  }
+
+  overlay.classList.add('show');
+}
+
+function nextQuestion() {
+  currentIdx++;
+  document.getElementById('resultOverlay').classList.remove('show');
+  setTimeout(showQuestion, 300);
+}
+
+function restartGame() {
+  document.getElementById('resultOverlay').classList.remove('show');
+  setTimeout(startGame, 300);
+}
+
+// ===== START =====
+startGame();
+</script>
+</body>
+</html>
