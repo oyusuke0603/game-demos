@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>将棋 ～伝統の一手～</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700;900&family=Shippori+Mincho:wght@400;700&display=swap');
+
+  :root {
+    --ink: #1a0a00;
+    --paper: #f5e6c8;
+    --board: #d4a843;
+    --board-dark: #b8892a;
+    --grid: #7a5520;
+    --red: #c0392b;
+    --gold: #d4aa00;
+    --shadow: rgba(26,10,0,0.3);
+    --panel: #fdf3dc;
+    --border: #8b6020;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a0a00;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, #2d1500 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, #0d0500 0%, transparent 60%),
+      repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(100,50,0,0.03) 40px, rgba(100,50,0,0.03) 41px);
+    min-height: 100vh;
+    font-family: 'Noto Serif JP', serif;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h1 {
+    font-family: 'Shippori Mincho', serif;
+    color: var(--paper);
+    font-size: 2rem;
+    text-align: center;
+    padding: 16px 0 8px;
+    letter-spacing: 0.5em;
+    text-shadow: 0 0 20px rgba(212,170,0,0.5), 0 2px 4px rgba(0,0,0,0.8);
+  }
+  h1 span { color: var(--gold); }
+
+  /* ── ツールバー ── */
+  #toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 8px 16px 12px;
+  }
+
+  .btn {
+    background: linear-gradient(180deg, #e8c96a 0%, #b8892a 100%);
+    border: 2px solid #7a5520;
+    color: var(--ink);
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 5px 10px rgba(0,0,0,0.5); }
+  .btn:active { transform: translateY(1px); box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  .btn.danger { background: linear-gradient(180deg, #e87070 0%, #a83030 100%); border-color: #7a2020; color: #fff; }
+
+  select {
+    background: linear-gradient(180deg, var(--panel) 0%, #e8d4a0 100%);
+    border: 2px solid var(--border);
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    border-radius: 4px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  label { color: var(--paper); font-size: 0.8rem; }
+
+  /* ── メインレイアウト ── */
+  #main {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 0 12px 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* ── 持ち駒エリア ── */
+  .hand-area {
+    background: linear-gradient(180deg, var(--panel) 0%, #e8d0a0 100%);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    min-width: 100px;
+    box-shadow: 4px 4px 12px var(--shadow);
+  }
+  .hand-area h3 {
+    font-size: 0.75rem;
+    text-align: center;
+    margin-bottom: 8px;
+    color: #5a3010;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    letter-spacing: 0.1em;
+  }
+  .hand-pieces {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 60px;
+  }
+  .hand-piece {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(180deg, #f8e8c0 0%, #e0c080 100%);
+    border: 1.5px solid #9a7030;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    transition: all 0.15s;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+  }
+  .hand-piece:hover { background: linear-gradient(180deg, #ffe8a0 0%, #f0d060 100%); transform: scale(1.05); }
+  .hand-piece.selected { background: linear-gradient(180deg, #ffe040 0%, #e0b000 100%); border-color: var(--red); box-shadow: 0 0 8px rgba(192,57,43,0.5); }
+  .hand-piece .count { color: var(--red); font-size: 0.7rem; min-width: 18px; text-align: right; }
+  .hand-piece.enemy { cursor: default; }
+  .hand-piece.enemy:hover { transform: none; background: linear-gradient(180deg, #f8e8c0 0%, #e0c080 100%); }
+
+  /* ── 盤面 ── */
+  #board-wrap {
+    position: relative;
+  }
+
+  #board-container {
+    background: linear-gradient(180deg, #e8c860 0%, #c89820 100%);
+    border: 3px solid #5a3010;
+    border-radius: 6px;
+    padding: 20px 20px 24px 24px;
+    box-shadow: 8px 8px 24px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,0,0,0.1);
+    position: relative;
+  }
+
+  /* 段・筋の目盛り */
+  .board-labels-top {
+    display: flex;
+    justify-content: space-around;
+    padding: 0 0 4px 4px;
+    font-size: 0.65rem;
+    color: #5a3010;
+    font-weight: 700;
+  }
+  .board-labels-right {
+    position: absolute;
+    right: 4px;
+    top: 44px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    font-size: 0.65rem;
+    color: #5a3010;
+    font-weight: 700;
+  }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(9, 56px);
+    grid-template-rows: repeat(9, 56px);
+    gap: 0;
+    border: 2px solid var(--grid);
+  }
+
+  .cell {
+    width: 56px;
+    height: 56px;
+    border: 1px solid var(--grid);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.1s;
+  }
+  .cell:hover { background: rgba(255,240,150,0.3); }
+  .cell.selected { background: rgba(255,200,0,0.5) !important; }
+  .cell.movable {
+    background: rgba(50,200,50,0.25);
+  }
+  .cell.movable::after {
+    content: '';
+    position: absolute;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: rgba(50,180,50,0.5);
+    border: 2px solid rgba(0,150,0,0.6);
+  }
+  .cell.movable:hover { background: rgba(50,220,50,0.4); }
+  .cell.last-move { background: rgba(255,160,0,0.3); }
+
+  /* ── 駒 ── */
+  .piece {
+    width: 50px;
+    height: 50px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.1s;
+  }
+  .piece:hover { transform: scale(1.08); }
+
+  .piece svg {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0; left: 0;
+    filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.4));
+  }
+
+  .piece-char {
+    position: relative;
+    z-index: 2;
+    font-size: 0.9rem;
+    font-weight: 900;
+    line-height: 1;
+    text-align: center;
+    font-family: 'Shippori Mincho', serif;
+    letter-spacing: -0.05em;
+  }
+  .piece-sub {
+    font-size: 0.5rem;
+    display: block;
+    letter-spacing: 0;
+  }
+
+  .piece.enemy { transform: rotate(180deg); }
+  .piece.enemy:hover { transform: rotate(180deg) scale(1.08); }
+  .piece.promoted .piece-char { color: var(--red); }
+  .piece.selected-piece { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(255,200,0,0.9)); }
+  .piece.enemy.selected-piece { transform: rotate(180deg) scale(1.15); }
+
+  /* ── サイドパネル ── */
+  #side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 200px;
+  }
+
+  .info-box {
+    background: linear-gradient(180deg, var(--panel) 0%, #e8d0a0 100%);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 4px 4px 12px var(--shadow);
+    font-size: 0.8rem;
+  }
+  .info-box h3 {
+    font-size: 0.8rem;
+    color: #5a3010;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+    letter-spacing: 0.1em;
+  }
+
+  #status-box {
+    font-size: 1rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 12px;
+  }
+  #status-text {
+    font-size: 1rem;
+    color: #3a1a00;
+  }
+  #turn-indicator {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: #7a5020;
+  }
+
+  #move-log {
+    height: 150px;
+    overflow-y: auto;
+    font-size: 0.7rem;
+    line-height: 1.8;
+    color: #4a2800;
+  }
+  #move-log::-webkit-scrollbar { width: 4px; }
+  #move-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── 説明モーダル ── */
+  #modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  #modal-overlay.show { display: flex; align-items: flex-start; justify-content: center; }
+
+  #modal {
+    background: linear-gradient(180deg, var(--panel) 0%, #e0c880 100%);
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 640px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+    position: relative;
+    margin: auto;
+  }
+  #modal h2 {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1.4rem;
+    color: #3a1a00;
+    text-align: center;
+    margin-bottom: 16px;
+    letter-spacing: 0.3em;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 8px;
+  }
+  #modal h3 {
+    font-size: 0.95rem;
+    color: #5a2800;
+    margin: 14px 0 6px;
+    border-left: 4px solid var(--gold);
+    padding-left: 8px;
+  }
+  #modal p, #modal li {
+    font-size: 0.82rem;
+    line-height: 1.9;
+    color: #3a1a00;
+  }
+  #modal ul { padding-left: 18px; }
+  #modal li { margin-bottom: 3px; }
+
+  .piece-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    margin: 8px 0;
+  }
+  .piece-table th {
+    background: #c89820;
+    color: #fff;
+    padding: 5px 8px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .piece-table td {
+    padding: 4px 8px;
+    border: 1px solid #c0a060;
+    background: rgba(255,255,255,0.4);
+    text-align: center;
+  }
+  .piece-table tr:nth-child(even) td { background: rgba(255,255,255,0.2); }
+
+  .close-btn {
+    position: absolute;
+    top: 10px; right: 14px;
+    font-size: 1.4rem;
+    cursor: pointer;
+    color: #5a2800;
+    background: none;
+    border: none;
+    font-family: serif;
+    line-height: 1;
+  }
+  .close-btn:hover { color: var(--red); }
+
+  /* ── 成りダイアログ ── */
+  #promote-dialog {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  #promote-dialog.show { display: flex; }
+  #promote-box {
+    background: linear-gradient(180deg, var(--panel) 0%, #e0c880 100%);
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+  }
+  #promote-box h3 { font-size: 1rem; margin-bottom: 16px; color: #3a1a00; }
+  #promote-box .btn { font-size: 0.95rem; padding: 10px 28px; margin: 0 8px; }
+
+  /* ── ゲームオーバー ── */
+  #gameover-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 300;
+    align-items: center;
+    justify-content: center;
+  }
+  #gameover-overlay.show { display: flex; }
+  #gameover-box {
+    background: linear-gradient(180deg, var(--panel) 0%, #e0c880 100%);
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 40px;
+    text-align: center;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.8);
+  }
+  #gameover-box h2 {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+    letter-spacing: 0.3em;
+  }
+  #gameover-box p { font-size: 1rem; margin-bottom: 20px; color: #5a2800; }
+  #gameover-box .btn { font-size: 1rem; padding: 12px 32px; }
+
+  /* 思考中 */
+  #thinking {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(26,10,0,0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    border-radius: 4px;
+  }
+  #thinking.show { display: flex; }
+  #thinking span {
+    background: rgba(26,10,0,0.9);
+    color: var(--gold);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    letter-spacing: 0.2em;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* レスポンシブ */
+  @media (max-width: 700px) {
+    #board { grid-template-columns: repeat(9, 38px); grid-template-rows: repeat(9, 38px); }
+    .cell { width: 38px; height: 38px; }
+    .piece { width: 34px; height: 34px; }
+    .piece-char { font-size: 0.6rem; }
+    .piece-sub { font-size: 0.35rem; }
+    #board-container { padding: 14px 14px 16px 16px; }
+    #side-panel { width: 160px; }
+    .hand-area { min-width: 80px; }
+    #board-container { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>将　棋　<span>盤</span></h1>
+
+<div id="toolbar">
+  <button class="btn danger" onclick="newGame()">新規対局</button>
+  <button class="btn" onclick="undoMove()">待った</button>
+  <button class="btn" onclick="toggleSound()">🔊 <span id="sound-label">音ON</span></button>
+  <label>難易度：</label>
+  <select id="difficulty" onchange="changeDifficulty()">
+    <option value="1">入門</option>
+    <option value="2" selected>初級</option>
+    <option value="3">中級</option>
+    <option value="4">上級</option>
+  </select>
+  <button class="btn" onclick="showHelp()">将棋の説明</button>
+</div>
+
+<div id="main">
+  <!-- 上側持ち駒（敵） -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+    <div class="hand-area" id="enemy-hand">
+      <h3>▲ 相手の持ち駒</h3>
+      <div class="hand-pieces" id="enemy-hand-pieces"></div>
+    </div>
+  </div>
+
+  <div id="board-wrap">
+    <div id="board-container">
+      <div class="board-labels-top" id="labels-top"></div>
+      <div id="board"></div>
+      <div class="board-labels-right" id="labels-right"></div>
+      <div id="thinking"><span>思考中…</span></div>
+    </div>
+  </div>
+
+  <div id="side-panel">
+    <div class="info-box" id="status-box">
+      <div id="status-text">あなたの番</div>
+      <div id="turn-indicator">手数: <span id="move-count">0</span></div>
+    </div>
+    <div class="info-box">
+      <h3>棋譜</h3>
+      <div id="move-log"></div>
+    </div>
+    <div class="hand-area" id="my-hand">
+      <h3>▽ あなたの持ち駒</h3>
+      <div class="hand-pieces" id="my-hand-pieces"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 成りダイアログ -->
+<div id="promote-dialog">
+  <div id="promote-box">
+    <h3>成りますか？</h3>
+    <button class="btn" onclick="confirmPromotion(true)">成る</button>
+    <button class="btn" onclick="confirmPromotion(false)">成らない</button>
+  </div>
+</div>
+
+<!-- ゲームオーバー -->
+<div id="gameover-overlay">
+  <div id="gameover-box">
+    <h2 id="gameover-title"></h2>
+    <p id="gameover-msg"></p>
+    <button class="btn" onclick="newGame()">もう一度</button>
+  </div>
+</div>
+
+<!-- 説明モーダル -->
+<div id="modal-overlay">
+  <div id="modal">
+    <button class="close-btn" onclick="hideHelp()">✕</button>
+    <h2>将棋の説明</h2>
+
+    <h3>基本ルール</h3>
+    <p>将棋は9×9の盤上で先手・後手交互に駒を動かし、相手の<strong>王将（玉将）</strong>を詰ませた方が勝ちです。</p>
+
+    <h3>駒の種類と動き</h3>
+    <table class="piece-table">
+      <tr><th>駒</th><th>名前</th><th>動き</th><th>成り後</th></tr>
+      <tr><td>王・玉</td><td>王将・玉将</td><td>前後左右斜め1マス</td><td>成れない</td></tr>
+      <tr><td>飛</td><td>飛車</td><td>縦横何マスでも</td><td>龍王（斜め1マスも可）</td></tr>
+      <tr><td>角</td><td>角行</td><td>斜め何マスでも</td><td>龍馬（縦横1マスも可）</td></tr>
+      <tr><td>金</td><td>金将</td><td>前後左右・斜め前1マス</td><td>成れない</td></tr>
+      <tr><td>銀</td><td>銀将</td><td>前・斜め前後1マス</td><td>全（金将と同じ動き）</td></tr>
+      <tr><td>桂</td><td>桂馬</td><td>前方へL字（2つ前+左右1）</td><td>全（金将と同じ動き）</td></tr>
+      <tr><td>香</td><td>香車</td><td>前方何マスでも</td><td>全（金将と同じ動き）</td></tr>
+      <tr><td>歩</td><td>歩兵</td><td>前1マス</td><td>と金（金将と同じ動き）</td></tr>
+    </table>
+
+    <h3>成り（昇格）</h3>
+    <p>駒が敵陣（相手側3段）に入ったとき、または敵陣内で移動したとき「成る」か「成らない」か選べます。成ると移動方法が変わり（上表参照）、裏面の赤文字になります。</p>
+
+    <h3>持ち駒（打ち駒）</h3>
+    <p>相手の駒を取ると「持ち駒」になります。自分の手番に、盤上の空きマスに持ち駒を置くことができます（打ち駒）。ただし以下は禁じ手：</p>
+    <ul>
+      <li>二歩：同じ列に自分の歩を2枚置けない</li>
+      <li>打ち歩詰め：歩を打って王を詰ますことは禁止</li>
+      <li>行き所のない駒：動けないマスに駒を打てない（桂は1〜2段目、香・歩は1段目に打てない）</li>
+    </ul>
+
+    <h3>チェック（王手）と詰み</h3>
+    <p>相手の王を取れる状態を<strong>王手</strong>といいます。王手をかけられたら必ず解消しなければなりません。どうしても解消できない状態が<strong>詰み</strong>で、詰まされた側の負けです。</p>
+
+    <h3>このゲームの操作方法</h3>
+    <ul>
+      <li>動かしたい駒をクリック → 移動できるマスが緑色で表示</li>
+      <li>移動先のマスをクリックで移動</li>
+      <li>持ち駒エリアの駒をクリック → 盤上に打てるマスが緑色で表示</li>
+      <li>敵陣に入ったとき「成る」か確認が出ます</li>
+      <li>「待った」ボタンで1手戻せます</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  定数・型定義
+// ══════════════════════════════════════════════
+
+// 駒の種類
+const PIECES = {
+  EMPTY: 0,
+  FU: 1,    // 歩
+  KYO: 2,   // 香
+  KEI: 3,   // 桂
+  GIN: 4,   // 銀
+  KIN: 5,   // 金
+  KAKU: 6,  // 角
+  HI: 7,    // 飛
+  OU: 8,    // 王
+  TO: 9,    // と金
+  NKYO: 10, // 成香
+  NKEI: 11, // 成桂
+  NGIN: 12, // 成銀
+  RYU: 13,  // 龍王
+  UMA: 14,  // 龍馬
+};
+
+const PIECE_NAMES = {
+  [PIECES.FU]: '歩', [PIECES.KYO]: '香', [PIECES.KEI]: '桂',
+  [PIECES.GIN]: '銀', [PIECES.KIN]: '金', [PIECES.KAKU]: '角',
+  [PIECES.HI]: '飛', [PIECES.OU]: '王',
+  [PIECES.TO]: 'と', [PIECES.NKYO]: '杏', [PIECES.NKEI]: '圭',
+  [PIECES.NGIN]: '全', [PIECES.RYU]: '龍', [PIECES.UMA]: '馬',
+};
+const PIECE_SUB = {
+  [PIECES.FU]: '兵', [PIECES.KYO]: '車', [PIECES.KEI]: '馬',
+  [PIECES.GIN]: '将', [PIECES.KIN]: '将', [PIECES.KAKU]: '行',
+  [PIECES.HI]: '車', [PIECES.OU]: '将',
+  [PIECES.TO]: '金', [PIECES.NKYO]: '香', [PIECES.NKEI]: '桂',
+  [PIECES.NGIN]: '銀', [PIECES.RYU]: '王', [PIECES.UMA]: '馬',
+};
+
+const PROMOTE_MAP = {
+  [PIECES.FU]: PIECES.TO, [PIECES.KYO]: PIECES.NKYO,
+  [PIECES.KEI]: PIECES.NKEI, [PIECES.GIN]: PIECES.NGIN,
+  [PIECES.KAKU]: PIECES.UMA, [PIECES.HI]: PIECES.RYU,
+};
+const DEMOTE_MAP = {};
+for (const [k,v] of Object.entries(PROMOTE_MAP)) DEMOTE_MAP[v] = parseInt(k);
+
+const CAN_PROMOTE = new Set([PIECES.FU, PIECES.KYO, PIECES.KEI, PIECES.GIN, PIECES.KAKU, PIECES.HI]);
+
+// 盤面 [row][col]  row=0が後手側最奥, row=8が先手側最奥
+// プレイヤーは先手（下側、row8付近）
+
+// ══════════════════════════════════════════════
+//  ゲーム状態
+// ══════════════════════════════════════════════
+let board; // 9x9, {type, owner}  owner: 1=先手(自分), 2=後手(敵)
+let hands; // {1: {type: count}, 2: {type: count}}
+let currentPlayer; // 1 or 2
+let selected; // {row, col} or null
+let selectedHand; // {owner, type} or null
+let movableCells; // [{row, col}]
+let moveHistory; // スタック
+let moveCount;
+let gameOver;
+let soundEnabled = true;
+let difficulty = 2;
+let lastMove; // {fromRow, fromCol, toRow, toCol}
+let pendingPromotion; // {fromRow, fromCol, toRow, toCol, type, owner}
+
+// AudioContext
+let audioCtx;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playSound(type) {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    if (type === 'move') {
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      osc.start(now); osc.stop(now + 0.1);
+    } else if (type === 'capture') {
+      osc.frequency.setValueAtTime(300, now);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.start(now); osc.stop(now + 0.15);
+    } else if (type === 'check') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'select') {
+      osc.frequency.setValueAtTime(800, now);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      osc.start(now); osc.stop(now + 0.05);
+    } else if (type === 'promote') {
+      osc.frequency.setValueAtTime(400, now);
+      osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'gameover') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(200, now);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.start(now); osc.stop(now + 0.5);
+    }
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════════
+//  初期化
+// ══════════════════════════════════════════════
+function makeEmptyBoard() {
+  return Array.from({length:9}, () => Array(9).fill(null));
+}
+
+function newGame() {
+  document.getElementById('gameover-overlay').classList.remove('show');
+  board = makeEmptyBoard();
+  hands = {1:{}, 2:{}};
+  currentPlayer = 1;
+  selected = null;
+  selectedHand = null;
+  movableCells = [];
+  moveHistory = [];
+  moveCount = 0;
+  gameOver = false;
+  lastMove = null;
+  pendingPromotion = null;
+  document.getElementById('move-log').innerHTML = '';
+  document.getElementById('move-count').textContent = '0';
+  document.getElementById('status-text').textContent = 'あなたの番';
+
+  // 初期配置
+  // 後手（enemy, owner=2）側  row0..2
+  const p = (type, owner) => ({type, owner});
+  // row 0
+  board[0][0]=p(PIECES.KYO,2); board[0][1]=p(PIECES.KEI,2); board[0][2]=p(PIECES.GIN,2);
+  board[0][3]=p(PIECES.KIN,2); board[0][4]=p(PIECES.OU,2); board[0][5]=p(PIECES.KIN,2);
+  board[0][6]=p(PIECES.GIN,2); board[0][7]=p(PIECES.KEI,2); board[0][8]=p(PIECES.KYO,2);
+  // row 1
+  board[1][1]=p(PIECES.HI,2); board[1][7]=p(PIECES.KAKU,2);
+  // row 2
+  for(let c=0;c<9;c++) board[2][c]=p(PIECES.FU,2);
+  // 先手（player, owner=1）側  row6..8
+  // row 6
+  for(let c=0;c<9;c++) board[6][c]=p(PIECES.FU,1);
+  // row 7
+  board[7][1]=p(PIECES.KAKU,1); board[7][7]=p(PIECES.HI,1);
+  // row 8
+  board[8][0]=p(PIECES.KYO,1); board[8][1]=p(PIECES.KEI,1); board[8][2]=p(PIECES.GIN,1);
+  board[8][3]=p(PIECES.KIN,1); board[8][4]=p(PIECES.OU,1); board[8][5]=p(PIECES.KIN,1);
+  board[8][6]=p(PIECES.GIN,1); board[8][7]=p(PIECES.KEI,1); board[8][8]=p(PIECES.KYO,1);
+
+  renderAll();
+}
+
+// ══════════════════════════════════════════════
+//  移動可能マス計算
+// ══════════════════════════════════════════════
+function getMoves(type, row, col, owner) {
+  const moves = [];
+  const dir = owner === 1 ? -1 : 1; // 先手は上(row-1)へ進む
+
+  function addIfValid(r, c) {
+    if (r<0||r>8||c<0||c>8) return false;
+    const cell = board[r][c];
+    if (cell && cell.owner === owner) return false;
+    moves.push({row:r, col:c});
+    return !cell; // 空なら続けて走れる
+  }
+
+  function slide(dr, dc) {
+    let r=row+dr, c=col+dc;
+    while(r>=0&&r<=8&&c>=0&&c<=8) {
+      const cell = board[r][c];
+      if (cell) {
+        if (cell.owner !== owner) moves.push({row:r,col:c});
+        break;
+      }
+      moves.push({row:r, col:c});
+      r+=dr; c+=dc;
+    }
+  }
+
+  // 金将の動き（と金・成香・成桂・成銀も同じ）
+  const kinMoves = () => {
+    [[dir,0],[0,-1],[0,1],[-dir,0],[dir,-1],[dir,1]].forEach(([dr,dc]) => addIfValid(row+dr,col+dc));
+  };
+
+  switch(type) {
+    case PIECES.FU:   addIfValid(row+dir, col); break;
+    case PIECES.KYO:  slide(dir, 0); break;
+    case PIECES.KEI:
+      addIfValid(row+dir*2, col-1);
+      addIfValid(row+dir*2, col+1);
+      break;
+    case PIECES.GIN:
+      [[dir,0],[dir,-1],[dir,1],[-dir,-1],[-dir,1]].forEach(([dr,dc]) => addIfValid(row+dr,col+dc));
+      break;
+    case PIECES.KIN: case PIECES.TO: case PIECES.NKYO: case PIECES.NKEI: case PIECES.NGIN:
+      kinMoves(); break;
+    case PIECES.KAKU:
+      slide(1,1); slide(1,-1); slide(-1,1); slide(-1,-1); break;
+    case PIECES.HI:
+      slide(1,0); slide(-1,0); slide(0,1); slide(0,-1); break;
+    case PIECES.OU:
+      for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++)
+        if(dr||dc) addIfValid(row+dr,col+dc);
+      break;
+    case PIECES.UMA:
+      slide(1,1); slide(1,-1); slide(-1,1); slide(-1,-1);
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc]) => addIfValid(row+dr,col+dc));
+      break;
+    case PIECES.RYU:
+      slide(1,0); slide(-1,0); slide(0,1); slide(0,-1);
+      [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([dr,dc]) => addIfValid(row+dr,col+dc));
+      break;
+  }
+  return moves;
+}
+
+// 打てるマス（持ち駒）
+function getDropMoves(type, owner) {
+  const moves = [];
+  const dir = owner === 1 ? -1 : 1;
+  for(let r=0;r<9;r++) {
+    for(let c=0;c<9;c++) {
+      if (board[r][c]) continue;
+      // 行き所のない駒チェック
+      if (type===PIECES.FU||type===PIECES.KYO) {
+        if (owner===1 && r===0) continue;
+        if (owner===2 && r===8) continue;
+      }
+      if (type===PIECES.KEI) {
+        if (owner===1 && r<=1) continue;
+        if (owner===2 && r>=7) continue;
+      }
+      // 二歩チェック
+      if (type===PIECES.FU) {
+        let hasFu = false;
+        for(let rr=0;rr<9;rr++) {
+          if (board[rr][c] && board[rr][c].type===PIECES.FU && board[rr][c].owner===owner) {
+            hasFu=true; break;
+          }
+        }
+        if (hasFu) continue;
+      }
+      moves.push({row:r, col:c});
+    }
+  }
+  return moves;
+}
+
+// 王の位置取得
+function findKing(owner) {
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++)
+    if (board[r][c]?.type===PIECES.OU && board[r][c]?.owner===owner)
+      return {row:r,col:c};
+  return null;
+}
+
+// 王手チェック
+function isInCheck(owner) {
+  const king = findKing(owner);
+  if (!king) return false;
+  const enemy = owner===1 ? 2 : 1;
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++) {
+    const cell = board[r][c];
+    if (!cell || cell.owner!==enemy) continue;
+    const moves = getMoves(cell.type, r, c, enemy);
+    if (moves.some(m=>m.row===king.row&&m.col===king.col)) return true;
+  }
+  return false;
+}
+
+// 合法手チェック（王手を解消するか確認）
+function isLegalMove(fromRow, fromCol, toRow, toCol, type, owner, isDrop=false) {
+  // 仮に動かす
+  const savedTo = board[toRow][toCol];
+  const savedFrom = isDrop ? null : board[fromRow][fromCol];
+  if (!isDrop) board[fromRow][fromCol] = null;
+  board[toRow][toCol] = {type, owner};
+  const check = isInCheck(owner);
+  // 戻す
+  board[toRow][toCol] = savedTo;
+  if (!isDrop) board[fromRow][fromCol] = savedFrom;
+  return !check;
+}
+
+// ══════════════════════════════════════════════
+//  敵陣判定
+// ══════════════════════════════════════════════
+function isEnemyTerritory(row, owner) {
+  return owner===1 ? row<=2 : row>=6;
+}
+
+// ══════════════════════════════════════════════
+//  クリックハンドラ
+// ══════════════════════════════════════════════
+function onCellClick(row, col) {
+  if (gameOver || currentPlayer !== 1 || pendingPromotion) return;
+
+  const cell = board[row][col];
+
+  // 持ち駒を打つモード
+  if (selectedHand) {
+    const isMovable = movableCells.some(m=>m.row===row&&m.col===col);
+    if (isMovable) {
+      doDropMove(selectedHand.type, row, col, 1);
+      return;
+    }
+    // 別の自駒を選択
+    if (cell && cell.owner===1) {
+      selectedHand = null;
+      selectPiece(row, col);
+      return;
+    }
+    clearSelection();
+    return;
+  }
+
+  // 移動モード
+  if (selected) {
+    const isMovable = movableCells.some(m=>m.row===row&&m.col===col);
+    if (isMovable) {
+      doMove(selected.row, selected.col, row, col, 1);
+      return;
+    }
+    // 別の自駒を選択
+    if (cell && cell.owner===1) {
+      selectPiece(row, col);
+      return;
+    }
+    clearSelection();
+    return;
+  }
+
+  // 駒選択
+  if (cell && cell.owner===1) {
+    selectPiece(row, col);
+  }
+}
+
+function selectPiece(row, col) {
+  const cell = board[row][col];
+  if (!cell) return;
+  playSound('select');
+  selected = {row, col};
+  selectedHand = null;
+  const rawMoves = getMoves(cell.type, row, col, cell.owner);
+  movableCells = rawMoves.filter(m => isLegalMove(row, col, m.row, m.col, cell.type, cell.owner));
+  renderAll();
+}
+
+function onHandClick(owner, type) {
+  if (gameOver || currentPlayer !== 1 || owner !== 1 || pendingPromotion) return;
+  playSound('select');
+  selected = null;
+  selectedHand = {owner, type};
+  movableCells = getDropMoves(type, owner).filter(m => isLegalMove(m.row, m.col, m.row, m.col, type, owner, true));
+  renderAll();
+}
+
+function clearSelection() {
+  selected = null;
+  selectedHand = null;
+  movableCells = [];
+  renderAll();
+}
+
+// ══════════════════════════════════════════════
+//  移動実行
+// ══════════════════════════════════════════════
+function doMove(fromRow, fromCol, toRow, toCol, owner) {
+  const piece = board[fromRow][fromCol];
+  const captured = board[toRow][toCol];
+
+  // 履歴保存
+  moveHistory.push({
+    fromRow, fromCol, toRow, toCol,
+    piece: {...piece},
+    captured: captured ? {...captured} : null,
+    hands: deepCloneHands(),
+    lastMove: lastMove ? {...lastMove} : null,
+  });
+
+  // 取る
+  if (captured) {
+    playSound('capture');
+    const demotion = DEMOTE_MAP[captured.type] || captured.type;
+    hands[owner][demotion] = (hands[owner][demotion] || 0) + 1;
+  } else {
+    playSound('move');
+  }
+
+  board[fromRow][fromCol] = null;
+  board[toRow][toCol] = {...piece};
+  lastMove = {fromRow, fromCol, toRow, toCol};
+
+  // 成り判定
+  const canProm = CAN_PROMOTE.has(piece.type);
+  const inEnemy = isEnemyTerritory(toRow, owner) || isEnemyTerritory(fromRow, owner);
+  const mustProm = mustPromote(piece.type, toRow, owner);
+
+  clearSelection();
+
+  if (canProm && inEnemy) {
+    if (mustProm) {
+      // 強制成り
+      board[toRow][toCol].type = PROMOTE_MAP[piece.type];
+      playSound('promote');
+      logMove(fromRow, fromCol, toRow, toCol, piece.type, true, owner);
+      endTurn(owner);
+    } else {
+      // 成るか聞く
+      pendingPromotion = {fromRow, fromCol, toRow, toCol, type: piece.type, owner};
+      document.getElementById('promote-dialog').classList.add('show');
+      renderAll();
+    }
+  } else {
+    logMove(fromRow, fromCol, toRow, toCol, piece.type, false, owner);
+    endTurn(owner);
+  }
+}
+
+function mustPromote(type, toRow, owner) {
+  if (type===PIECES.FU||type===PIECES.KYO) return owner===1 ? toRow===0 : toRow===8;
+  if (type===PIECES.KEI) return owner===1 ? toRow<=1 : toRow>=7;
+  return false;
+}
+
+function doDropMove(type, row, col, owner) {
+  moveHistory.push({
+    isDrop: true, type, row, col,
+    hands: deepCloneHands(),
+    lastMove: lastMove ? {...lastMove} : null,
+  });
+  playSound('move');
+  board[row][col] = {type, owner};
+  hands[owner][type]--;
+  if (hands[owner][type] <= 0) delete hands[owner][type];
+  lastMove = {toRow: row, toCol: col};
+  clearSelection();
+  const nameStr = PIECE_NAMES[type] + '打';
+  addLog(nameStr);
+  endTurn(owner);
+}
+
+function confirmPromotion(promote) {
+  if (!pendingPromotion) return;
+  const {fromRow, fromCol, toRow, toCol, type, owner} = pendingPromotion;
+  document.getElementById('promote-dialog').classList.remove('show');
+  if (promote) {
+    board[toRow][toCol].type = PROMOTE_MAP[type];
+    playSound('promote');
+  }
+  logMove(fromRow, fromCol, toRow, toCol, type, promote, owner);
+  pendingPromotion = null;
+  endTurn(owner);
+}
+
+function endTurn(owner) {
+  moveCount++;
+  document.getElementById('move-count').textContent = moveCount;
+
+  const next = owner===1 ? 2 : 1;
+
+  // 詰み/王手チェック
+  if (isCheckmate(next)) {
+    const win = owner===1 ? 'あなたの勝ち！' : '相手の勝ち';
+    const msg = owner===1 ? '相手の王を詰めました！' : '王手詰められました…';
+    playSound('gameover');
+    gameOver = true;
+    renderAll();
+    setTimeout(() => {
+      document.getElementById('gameover-title').textContent = win;
+      document.getElementById('gameover-msg').textContent = msg;
+      document.getElementById('gameover-overlay').classList.add('show');
+    }, 300);
+    return;
+  }
+
+  if (isInCheck(next)) {
+    playSound('check');
+    document.getElementById('status-text').textContent = next===1 ? '⚠️ 王手！' : '🔴 王手をかけました';
+  } else {
+    document.getElementById('status-text').textContent = next===1 ? 'あなたの番' : '相手の番';
+  }
+
+  currentPlayer = next;
+  renderAll();
+
+  if (next === 2) {
+    setTimeout(() => enemyTurn(), 200);
+  }
+}
+
+function isCheckmate(owner) {
+  if (!isInCheck(owner)) {
+    // 手がなければ（詰んでいなくても）引き分けの可能性はここでは省略
+    // 本格的には千日手等も必要だが省略
+    return false;
+  }
+  // 全合法手を試す
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++) {
+    const cell = board[r][c];
+    if (!cell || cell.owner!==owner) continue;
+    const moves = getMoves(cell.type, r, c, owner);
+    for(const m of moves) {
+      if (isLegalMove(r, c, m.row, m.col, cell.type, owner)) return false;
+    }
+  }
+  // 持ち駒打ちも確認
+  for(const [type, cnt] of Object.entries(hands[owner])) {
+    if (cnt <= 0) continue;
+    const drops = getDropMoves(parseInt(type), owner);
+    for(const m of drops) {
+      if (isLegalMove(m.row, m.col, m.row, m.col, parseInt(type), owner, true)) return false;
+    }
+  }
+  return true;
+}
+
+// ══════════════════════════════════════════════
+//  待った
+// ══════════════════════════════════════════════
+function undoMove() {
+  if (moveHistory.length === 0 || gameOver) return;
+  // AIの手も1つ戻す（プレイヤーの手まで）
+  let undone = false;
+  while(moveHistory.length > 0) {
+    const h = moveHistory.pop();
+    restoreHistory(h);
+    if (currentPlayer === 1) { undone = true; break; }
+    if (moveHistory.length === 0) { undone = true; break; }
+  }
+  if (!undone && moveHistory.length > 0) {
+    const h = moveHistory.pop();
+    restoreHistory(h);
+  }
+  document.getElementById('status-text').textContent = 'あなたの番';
+  moveCount = Math.max(0, moveCount - 2);
+  document.getElementById('move-count').textContent = moveCount;
+  renderAll();
+}
+
+function restoreHistory(h) {
+  if (h.isDrop) {
+    board[h.row][h.col] = null;
+    hands[1][h.type] = (hands[1][h.type]||0)+1;
+  } else {
+    board[h.fromRow][h.fromCol] = {...h.piece};
+    board[h.toRow][h.toCol] = h.captured ? {...h.captured} : null;
+  }
+  hands = h.hands;
+  lastMove = h.lastMove;
+  currentPlayer = 1;
+  gameOver = false;
+  // 棋譜の最後の行を削除
+  const log = document.getElementById('move-log');
+  if (log.lastChild) log.removeChild(log.lastChild);
+  if (log.lastChild) log.removeChild(log.lastChild);
+}
+
+function deepCloneHands() {
+  return {1: {...hands[1]}, 2: {...hands[2]}};
+}
+
+// ══════════════════════════════════════════════
+//  AI
+// ══════════════════════════════════════════════
+const PIECE_VALUES = {
+  [PIECES.FU]:100, [PIECES.KYO]:300, [PIECES.KEI]:300,
+  [PIECES.GIN]:500, [PIECES.KIN]:600, [PIECES.KAKU]:850,
+  [PIECES.HI]:1000, [PIECES.OU]:9999,
+  [PIECES.TO]:600, [PIECES.NKYO]:600, [PIECES.NKEI]:600,
+  [PIECES.NGIN]:600, [PIECES.UMA]:950, [PIECES.RYU]:1100,
+};
+
+function evalBoard() {
+  let score = 0;
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++) {
+    const cell = board[r][c];
+    if (!cell) continue;
+    const v = PIECE_VALUES[cell.type] || 0;
+    score += cell.owner===2 ? v : -v;
+  }
+  for(const [t,cnt] of Object.entries(hands[2])) score += (PIECE_VALUES[parseInt(t)]||0)*cnt*0.8;
+  for(const [t,cnt] of Object.entries(hands[1])) score -= (PIECE_VALUES[parseInt(t)]||0)*cnt*0.8;
+  return score;
+}
+
+function getAllMovesForOwner(owner) {
+  const moves = [];
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++) {
+    const cell = board[r][c];
+    if (!cell || cell.owner!==owner) continue;
+    const ms = getMoves(cell.type, r, c, owner);
+    for(const m of ms) {
+      if (isLegalMove(r, c, m.row, m.col, cell.type, owner))
+        moves.push({fromRow:r, fromCol:c, toRow:m.row, toCol:m.col, type:cell.type, owner, isDrop:false});
+    }
+  }
+  // 持ち駒
+  for(const [type, cnt] of Object.entries(hands[owner])) {
+    if (cnt<=0) continue;
+    const drops = getDropMoves(parseInt(type), owner);
+    for(const m of drops) {
+      if (isLegalMove(m.row, m.col, m.row, m.col, parseInt(type), owner, true))
+        moves.push({fromRow:m.row, fromCol:m.col, toRow:m.row, toCol:m.col, type:parseInt(type), owner, isDrop:true});
+    }
+  }
+  return moves;
+}
+
+function applyMove(mv) {
+  const captured = mv.isDrop ? null : board[mv.toRow][mv.toCol];
+  if (!mv.isDrop) board[mv.fromRow][mv.fromCol] = null;
+  else {
+    hands[mv.owner][mv.type]--;
+    if (hands[mv.owner][mv.type]<=0) delete hands[mv.owner][mv.type];
+  }
+  const type = mv.promoteAfter ? PROMOTE_MAP[mv.type] : mv.type;
+  board[mv.toRow][mv.toCol] = {type, owner:mv.owner};
+  return captured;
+}
+
+function undoApply(mv, captured) {
+  board[mv.toRow][mv.toCol] = captured;
+  if (!mv.isDrop) board[mv.fromRow][mv.fromCol] = {type:mv.type, owner:mv.owner};
+  else hands[mv.owner][mv.type] = (hands[mv.owner][mv.type]||0)+1;
+}
+
+function minimax(depth, alpha, beta, maximizing) {
+  if (depth===0) return evalBoard();
+  const owner = maximizing ? 2 : 1;
+  const moves = getAllMovesForOwner(owner);
+  if (moves.length===0) return maximizing ? -9999 : 9999;
+  let best = maximizing ? -Infinity : Infinity;
+  for(const mv of moves) {
+    const cap = applyMove(mv);
+    const v = minimax(depth-1, alpha, beta, !maximizing);
+    undoApply(mv, cap);
+    if (maximizing) { best=Math.max(best,v); alpha=Math.max(alpha,v); }
+    else            { best=Math.min(best,v); beta=Math.min(beta,v); }
+    if (beta<=alpha) break;
+  }
+  return best;
+}
+
+function enemyTurn() {
+  if (gameOver) return;
+  document.getElementById('thinking').classList.add('show');
+  document.getElementById('status-text').textContent = '相手が考え中…';
+
+  setTimeout(() => {
+    try { _doEnemyTurn(); }
+    catch(e) { console.error(e); }
+    document.getElementById('thinking').classList.remove('show');
+  }, 50);
+}
+
+function _doEnemyTurn() {
+  const moves = getAllMovesForOwner(2);
+  if (moves.length===0) {
+    gameOver=true;
+    document.getElementById('gameover-title').textContent = 'あなたの勝ち！';
+    document.getElementById('gameover-msg').textContent = '相手が指せる手がなくなりました！';
+    document.getElementById('gameover-overlay').classList.add('show');
+    return;
+  }
+
+  const depth = [1,1,2,3][difficulty-1];
+  let bestMv = null, bestScore = -Infinity;
+
+  // ランダム性
+  const shuffled = [...moves].sort(() => Math.random()-0.5);
+
+  for(const mv of shuffled) {
+    // 成り判定
+    if (!mv.isDrop && CAN_PROMOTE.has(mv.type)) {
+      const inE = isEnemyTerritory(mv.toRow, 2)||isEnemyTerritory(mv.fromRow, 2);
+      if (inE) mv.promoteAfter = !mustPromote(mv.type, mv.toRow, 2) ? true : true;
+    }
+    const cap = applyMove(mv);
+    let score = minimax(depth-1, -Infinity, Infinity, false);
+    undoApply(mv, cap);
+    // 難易度1は完全ランダム要素
+    if (difficulty===1) score += Math.random()*500;
+    if (difficulty===2) score += Math.random()*200;
+    if (score > bestScore) { bestScore=score; bestMv=mv; }
+  }
+
+  if (!bestMv) bestMv = shuffled[0];
+
+  const cap = board[bestMv.toRow][bestMv.toCol];
+  if (cap) playSound('capture'); else playSound('move');
+
+  if (!bestMv.isDrop) {
+    if (cap) {
+      const demotion = DEMOTE_MAP[cap.type]||cap.type;
+      hands[2][demotion]=(hands[2][demotion]||0)+1;
+    }
+    board[bestMv.fromRow][bestMv.fromCol]=null;
+    let type = bestMv.type;
+    if (bestMv.promoteAfter && CAN_PROMOTE.has(type)) {
+      type = PROMOTE_MAP[type];
+      playSound('promote');
+    }
+    board[bestMv.toRow][bestMv.toCol]={type, owner:2};
+    lastMove={fromRow:bestMv.fromRow, fromCol:bestMv.fromCol, toRow:bestMv.toRow, toCol:bestMv.toCol};
+    logMove(bestMv.fromRow, bestMv.fromCol, bestMv.toRow, bestMv.toCol, bestMv.type, !!bestMv.promoteAfter, 2);
+  } else {
+    hands[2][bestMv.type]--;
+    if (hands[2][bestMv.type]<=0) delete hands[2][bestMv.type];
+    board[bestMv.toRow][bestMv.toCol]={type:bestMv.type, owner:2};
+    lastMove={toRow:bestMv.toRow, toCol:bestMv.toCol};
+    addLog('相手:'+PIECE_NAMES[bestMv.type]+'打');
+  }
+
+  moveCount++;
+  document.getElementById('move-count').textContent = moveCount;
+  currentPlayer=1;
+
+  if (isCheckmate(1)) {
+    playSound('gameover');
+    gameOver=true;
+    renderAll();
+    setTimeout(()=>{
+      document.getElementById('gameover-title').textContent='相手の勝ち';
+      document.getElementById('gameover-msg').textContent='王手詰められました…';
+      document.getElementById('gameover-overlay').classList.add('show');
+    },300);
+    return;
+  }
+
+  if (isInCheck(1)) {
+    playSound('check');
+    document.getElementById('status-text').textContent='⚠️ 王手！';
+  } else {
+    document.getElementById('status-text').textContent='あなたの番';
+  }
+
+  renderAll();
+}
+
+// ══════════════════════════════════════════════
+//  棋譜ログ
+// ══════════════════════════════════════════════
+const COL_NAMES = ['9','8','7','6','5','4','3','2','1'];
+const ROW_NAMES = ['一','二','三','四','五','六','七','八','九'];
+
+function logMove(fr, fc, tr, tc, type, promoted, owner) {
+  const name = (owner===1 ? '▽' : '▲') + COL_NAMES[tc] + ROW_NAMES[tc] + PIECE_NAMES[type] + (promoted?'成':'');
+  addLog(name);
+}
+
+function addLog(text) {
+  const log = document.getElementById('move-log');
+  const div = document.createElement('div');
+  div.textContent = moveCount + '. ' + text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ══════════════════════════════════════════════
+//  レンダリング
+// ══════════════════════════════════════════════
+function renderAll() {
+  renderBoard();
+  renderHands();
+}
+
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+
+  for(let r=0;r<9;r++) {
+    for(let c=0;c<9;c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+
+      if (selected && selected.row===r && selected.col===c) cell.classList.add('selected');
+      if (lastMove && ((lastMove.fromRow===r&&lastMove.fromCol===c)||(lastMove.toRow===r&&lastMove.toCol===c))) cell.classList.add('last-move');
+      if (movableCells.some(m=>m.row===r&&m.col===c)) cell.classList.add('movable');
+
+      const piece = board[r][c];
+      if (piece) {
+        const el = makePieceEl(piece);
+        const isSelected = selected && selected.row===r && selected.col===c;
+        if (isSelected) el.classList.add('selected-piece');
+        cell.appendChild(el);
+      }
+
+      cell.addEventListener('click', () => onCellClick(r, c));
+      boardEl.appendChild(cell);
+    }
+  }
+
+  // 筋ラベル（上）
+  const labTop = document.getElementById('labels-top');
+  labTop.innerHTML = COL_NAMES.map(n=>`<span style="width:56px;text-align:center;">${n}</span>`).join('');
+
+  // 段ラベル（右）
+  const labRight = document.getElementById('labels-right');
+  labRight.style.height = '504px';
+  labRight.innerHTML = ROW_NAMES.map(n=>`<span style="height:56px;display:flex;align-items:center;">${n}</span>`).join('');
+}
+
+function makePieceEl(piece) {
+  const el = document.createElement('div');
+  el.className = 'piece' + (piece.owner===2 ? ' enemy' : '') +
+    (piece.type >= PIECES.TO ? ' promoted' : '');
+
+  // 五角形SVG
+  const fill = piece.owner===1 ? '#f8e8c0' : '#f0e0b0';
+  const stroke = piece.owner===1 ? '#8b6020' : '#7a5010';
+  el.innerHTML = `<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="25,2 48,18 40,48 10,48 2,18" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
+    <polygon points="25,5 45,19 38,45 12,45 5,19" fill="none" stroke="${stroke}" stroke-width="0.8" opacity="0.4"/>
+  </svg>
+  <span class="piece-char">${PIECE_NAMES[piece.type]}<span class="piece-sub">${PIECE_SUB[piece.type]||''}</span></span>`;
+
+  return el;
+}
+
+function renderHands() {
+  renderHandArea(1, 'my-hand-pieces');
+  renderHandArea(2, 'enemy-hand-pieces');
+}
+
+function renderHandArea(owner, elId) {
+  const container = document.getElementById(elId);
+  container.innerHTML = '';
+  const h = hands[owner];
+  for(const [type, cnt] of Object.entries(h)) {
+    if (cnt <= 0) continue;
+    const t = parseInt(type);
+    const el = document.createElement('div');
+    const isSelected = selectedHand && selectedHand.owner===owner && selectedHand.type===t;
+    el.className = 'hand-piece' + (owner===2 ? ' enemy' : '') + (isSelected ? ' selected' : '');
+    el.innerHTML = `<span>${PIECE_NAMES[t]}</span><span class="count">×${cnt}</span>`;
+    if (owner===1) el.addEventListener('click', () => onHandClick(owner, t));
+    container.appendChild(el);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  UI関数
+// ══════════════════════════════════════════════
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  document.getElementById('sound-label').textContent = soundEnabled ? '音ON' : '音OFF';
+}
+
+function changeDifficulty() {
+  difficulty = parseInt(document.getElementById('difficulty').value);
+}
+
+function showHelp() {
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function hideHelp() {
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+
+// ══════════════════════════════════════════════
+//  起動
+// ══════════════════════════════════════════════
+newGame();
+</script>
+</body>
+</html>
