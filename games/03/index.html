@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>七並べ</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: #1a4a2e;
+  font-family: 'Helvetica Neue', sans-serif;
+  color: #fff;
+  overflow: hidden;
+}
+
+/* ── レイアウト全体 ── */
+/* PC版：中央寄せの固定幅コンテナで見やすく */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  gap: 12px;
+}
+
+/* ── ヘッダー ── */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+#status-area { flex: 1; }
+
+#msg {
+  font-size: clamp(14px, 2vw, 20px);
+  font-weight: bold;
+  color: #ffe;
+  text-shadow: 0 1px 4px rgba(0,0,0,.4);
+}
+
+#turn {
+  font-size: clamp(12px, 1.4vw, 16px);
+  color: #aed8b0;
+  margin-top: 2px;
+}
+
+#ctrl-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+#pass-left {
+  font-size: clamp(11px, 1.2vw, 14px);
+  color: #aed8b0;
+  white-space: nowrap;
+}
+
+button {
+  padding: 8px 20px;
+  font-size: clamp(13px, 1.4vw, 16px);
+  font-weight: bold;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+button:active { transform: scale(0.96); }
+button:disabled { opacity: 0.35; cursor: default; transform: none; }
+
+#pass-btn {
+  background: #fff3d0;
+  color: #996600;
+  border: 2px solid #cc8800;
+}
+#pass-btn:not(:disabled):hover { background: #ffe8a0; }
+
+#new-btn {
+  background: #e0f0e0;
+  color: #1a4a2e;
+  border: 2px solid #5a9a5a;
+}
+#new-btn:hover { background: #c8e8c8; }
+
+/* ── 盤面エリア ── */
+#board-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  background: rgba(0,0,0,0.2);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(2px, 0.5vw, 6px);
+  flex: 1;
+  min-height: 0;
+}
+
+.suit-lbl {
+  font-size: clamp(20px, 3vw, 36px);
+  width: clamp(28px, 3.5vw, 46px);
+  flex-shrink: 0;
+  text-align: center;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+}
+.suit-lbl.red { color: #ff6666; }
+.suit-lbl.black { color: #fff; }
+
+/* カードサイズをvhベースで可変 */
+.card {
+  flex: 1;
+  max-width: 60px;
+  height: 100%;
+  border: 1.5px solid rgba(200,200,200,0.5);
+  border-radius: 5px;
+  background: white;
+  font-weight: bold;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(2px,0.4vh,5px) clamp(2px,0.4vw,5px);
+  cursor: default;
+  font-size: clamp(9px, 1.3vh, 16px);
+  min-width: 0;
+  overflow: hidden;
+}
+.card .top { text-align: left; line-height: 1.1; }
+.card .bot { text-align: right; line-height: 1.1; transform: rotate(180deg); }
+.card.red { color: #cc0000; }
+.card.black { color: #111; }
+.card.seven {
+  background: #d0e8ff;
+  border: 2px solid #4477aa;
+  box-shadow: 0 0 8px rgba(68,119,200,0.5);
+}
+.card.empty {
+  background: rgba(255,255,255,0.07);
+  border: 1.5px dashed rgba(255,255,255,0.2);
+}
+.card.empty .top, .card.empty .bot { visibility: hidden; }
+
+/* ── CPUエリア ── */
+#cpu-area {
+  flex-shrink: 0;
+  display: flex;
+  gap: clamp(12px, 3vw, 32px);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.cpu-card {
+  background: rgba(0,0,0,0.25);
+  border-radius: 8px;
+  padding: 6px 16px;
+  text-align: center;
+  min-width: 90px;
+}
+.cpu-name {
+  font-size: clamp(11px, 1.3vw, 15px);
+  color: #aed8b0;
+  font-weight: bold;
+}
+.cpu-count {
+  font-size: clamp(18px, 2.5vw, 30px);
+  font-weight: bold;
+  color: #fff;
+  line-height: 1.1;
+}
+.cpu-pass {
+  font-size: clamp(9px, 1vw, 12px);
+  color: #88bb88;
+}
+
+/* ── 手札エリア ── */
+#hand-area {
+  flex-shrink: 0;
+}
+
+#hand-label {
+  font-size: clamp(11px, 1.2vw, 14px);
+  color: #aed8b0;
+  margin-bottom: 4px;
+}
+
+.hand-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(4px, 0.7vw, 8px);
+}
+
+.hcard {
+  width: clamp(44px, 5.5vw, 72px);
+  height: clamp(62px, 7.8vw, 100px);
+  border: 2px solid #aaa;
+  border-radius: 6px;
+  background: white;
+  font-size: clamp(11px, 1.4vw, 18px);
+  font-weight: bold;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(2px,0.4vw,5px) clamp(3px,0.5vw,6px);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.12s, box-shadow 0.12s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+}
+.hcard:not(.dim):hover {
+  transform: translateY(-10px);
+  border-color: #4477aa;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+}
+.hcard.playable {
+  border-color: #ffcc00;
+  box-shadow: 0 0 12px rgba(255,204,0,0.6), 0 3px 8px rgba(0,0,0,0.4);
+}
+.hcard.dim { opacity: 0.35; cursor: default; }
+.hcard.dim:hover { transform: none; box-shadow: 0 3px 8px rgba(0,0,0,0.4); }
+.hcard.red { color: #cc0000; }
+.hcard.black { color: #111; }
+.hcard .top { text-align: left; line-height: 1.1; }
+.hcard .bot { text-align: right; line-height: 1.1; transform: rotate(180deg); }
+
+/* ── PC版（広い画面）：余裕を持って少し大きめに ── */
+@media (min-width: 1000px) {
+  .card { max-width: 68px; }
+  .hcard { width: clamp(60px, 5vw, 80px); height: clamp(84px, 7vw, 112px); }
+}
+
+/* ── スマホ版：ヘッダーを縦積み、盤面は横スクロールでカードサイズを確保 ── */
+@media (max-width: 680px) {
+  html, body { overflow: auto; }
+  #app {
+    height: auto;
+    min-height: 100svh;
+    overflow: visible;
+    padding: 10px 10px 16px;
+    gap: 8px;
+  }
+
+  #header { flex-direction: column; align-items: stretch; gap: 8px; }
+  #status-area { text-align: center; }
+  #ctrl-area { justify-content: center; flex-wrap: wrap; }
+  #pass-left { width: 100%; text-align: center; }
+  button { flex: 1; min-width: 120px; }
+
+  #board-area {
+    flex: none;
+    min-height: 0;
+    justify-content: flex-start;
+    padding: 8px 6px;
+    gap: 6px;
+    overflow: visible;
+  }
+  .board-row {
+    flex: none;
+    height: clamp(30px, 8.5vh, 46px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .suit-lbl { width: 22px; font-size: 17px; }
+  .card {
+    flex: none;
+    width: clamp(24px, 6.5vw, 34px);
+    max-width: none;
+    font-size: 8px;
+  }
+
+  #cpu-area { gap: 8px; }
+  .cpu-card { min-width: 68px; padding: 4px 10px; }
+  .cpu-count { font-size: 17px; }
+
+  #hand-area { padding-bottom: 4px; }
+  .hcard { width: clamp(46px, 12vw, 62px); height: clamp(64px, 17vw, 88px); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ヘッダー -->
+  <div id="header">
+    <div id="status-area">
+      <div id="msg">準備中...</div>
+      <div id="turn"></div>
+    </div>
+    <div id="ctrl-area">
+      <span id="pass-left"></span>
+      <button id="pass-btn" onclick="doPass()">パスする</button>
+      <button id="new-btn" onclick="startGame()">新しいゲーム</button>
+    </div>
+  </div>
+
+  <!-- 盤面 -->
+  <div id="board-area" id="board"></div>
+
+  <!-- CPU情報 -->
+  <div id="cpu-area"></div>
+
+  <!-- 手札 -->
+  <div id="hand-area">
+    <div id="hand-label">あなたの手札</div>
+    <div class="hand-row" id="hand"></div>
+  </div>
+
+</div>
+
+<script>
+var SUITS = ['♠','♥','♦','♣'];
+var RED = {'♥':1,'♦':1};
+var RL = {1:'A',11:'J',12:'Q',13:'K'};
+function rk(r){ return RL[r]||String(r); }
+
+var board={}, hands=[], cur=0, passes=[], over=false, cpuTimer=null;
+var MAX_PASS=3, NCPU=3;
+
+/* ── 効果音（配布音・パス音） ── */
+var audioCtx=null;
+function getCtx(){
+  if(!audioCtx){
+    try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+    catch(e){ audioCtx=null; }
+  }
+  if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playPassSound(){
+  var ctx=getCtx();
+  if(!ctx) return;
+  var t=ctx.currentTime;
+  var osc=ctx.createOscillator();
+  osc.type='sine';
+  osc.frequency.setValueAtTime(150,t);
+  osc.frequency.exponentialRampToValueAtTime(55,t+0.2);
+  var filter=ctx.createBiquadFilter();
+  filter.type='lowpass';
+  filter.frequency.value=350;
+  var gain=ctx.createGain();
+  gain.gain.setValueAtTime(0.0001,t);
+  gain.gain.exponentialRampToValueAtTime(0.28,t+0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001,t+0.24);
+  osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t+0.26);
+}
+
+function startGame(){
+  if(cpuTimer) clearTimeout(cpuTimer);
+  over=false;
+  var deck=[];
+  for(var si=0;si<SUITS.length;si++) for(var r=1;r<=13;r++) deck.push({s:SUITS[si],r:r});
+  for(var i=deck.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=deck[i];deck[i]=deck[j];deck[j]=t;}
+  var n=1+NCPU; hands=[];
+  for(var p=0;p<n;p++) hands.push([]);
+  for(var k=0;k<deck.length;k++) hands[k%n].push(deck[k]);
+  for(var p=0;p<n;p++) hands[p].sort(function(a,b){return SUITS.indexOf(a.s)-SUITS.indexOf(b.s)||a.r-b.r;});
+  board={};
+  for(var si=0;si<SUITS.length;si++) board[SUITS[si]]={min:7,max:7,ok:false};
+  passes=[];
+  for(var p=0;p<n;p++) passes.push(0);
+  for(var p=0;p<hands.length;p++){
+    for(var i=hands[p].length-1;i>=0;i--){
+      if(hands[p][i].r===7){board[hands[p][i].s].ok=true;hands[p].splice(i,1);}
+    }
+  }
+  cur=0;
+  for(var p=0;p<hands.length;p++){if(hands[p].length>0){cur=p;break;}}
+  render();
+  if(cur!==0) scheduleCpu();
+}
+
+function playable(c){var b=board[c.s];if(!b.ok)return false;return c.r===b.min-1||c.r===b.max+1;}
+function canPlay(h){for(var i=0;i<h.length;i++)if(playable(h[i]))return true;return false;}
+
+function placeCard(c,p){
+  var b=board[c.s];
+  if(c.r<b.min)b.min=c.r; if(c.r>b.max)b.max=c.r;
+  var h=hands[p];
+  for(var i=0;i<h.length;i++){if(h[i].s===c.s&&h[i].r===c.r){h.splice(i,1);break;}}
+  nextTurn();
+}
+
+function nextTurn(){if(checkWin())return;cur=(cur+1)%(1+NCPU);}
+
+function checkWin(){
+  for(var p=0;p<hands.length;p++){if(hands[p].length===0){endGame(p);return true;}}
+  var allStuck=true;
+  for(var p=0;p<hands.length;p++){if(passes[p]<MAX_PASS&&canPlay(hands[p])){allStuck=false;break;}}
+  if(allStuck){
+    var best=0;
+    for(var p=1;p<hands.length;p++){if(passes[p]<passes[best])best=p;}
+    endGame(best);return true;
+  }
+  return false;
+}
+
+function endGame(w){
+  over=true;
+  var name=w===0?'あなた':'CPU'+w;
+  document.getElementById('msg').textContent=w===0?'🎉 あなたの勝ち！':name+' の勝ち';
+  document.getElementById('turn').textContent=name+' が上がりました！';
+  render();
+}
+
+function doPass(){
+  if(cur!==0||over)return;
+  if(passes[0]>=MAX_PASS)return;
+  passes[0]++; playPassSound(); nextTurn(); render();
+  if(!over)scheduleCpu();
+}
+
+function humanPlay(c){
+  if(cur!==0||over)return;
+  if(!playable(c))return;
+  placeCard(c,0); render();
+  if(!over)scheduleCpu();
+}
+
+function scheduleCpu(){if(over||cur===0)return;cpuTimer=setTimeout(cpuTurn,700);}
+
+function cpuTurn(){
+  if(over||cur===0)return;
+  var p=cur,pl=[];
+  for(var i=0;i<hands[p].length;i++){if(playable(hands[p][i]))pl.push(hands[p][i]);}
+  if(pl.length>0){placeCard(pl[Math.floor(Math.random()*pl.length)],p);}
+  else{passes[p]++;playPassSound();nextTurn();}
+  render();
+  if(!over)scheduleCpu();
+}
+
+function render(){
+  // 盤面
+  var boardEl=document.getElementById('board-area');
+  boardEl.innerHTML='';
+  for(var si=0;si<SUITS.length;si++){
+    var s=SUITS[si],b=board[s];
+    var row=document.createElement('div');
+    row.className='board-row';
+    var lbl=document.createElement('div');
+    lbl.className='suit-lbl '+(RED[s]?'red':'black');
+    lbl.textContent=s;
+    row.appendChild(lbl);
+    for(var r=1;r<=13;r++){
+      var d=document.createElement('div');
+      if(b.ok&&r>=b.min&&r<=b.max){
+        var col=RED[s]?'red':'black';
+        var sv=r===7?' seven':'';
+        d.className='card '+col+sv;
+        d.innerHTML='<div class="top">'+rk(r)+'<br>'+s+'</div><div class="bot">'+rk(r)+'<br>'+s+'</div>';
+      }else{
+        d.className='card empty';
+        d.innerHTML='<div class="top">&nbsp;</div><div class="bot">&nbsp;</div>';
+      }
+      row.appendChild(d);
+    }
+    boardEl.appendChild(row);
+  }
+
+  // CPU情報
+  var cpuEl=document.getElementById('cpu-area');
+  cpuEl.innerHTML='';
+  for(var p=1;p<=NCPU;p++){
+    var cc=document.createElement('div');
+    cc.className='cpu-card';
+    cc.innerHTML='<div class="cpu-name">CPU '+p+'</div>'
+      +'<div class="cpu-count">'+hands[p].length+'枚</div>'
+      +'<div class="cpu-pass">パス '+passes[p]+'/'+MAX_PASS+'回</div>';
+    cpuEl.appendChild(cc);
+  }
+
+  // 手札
+  var handEl=document.getElementById('hand');
+  handEl.innerHTML='';
+  for(var i=0;i<hands[0].length;i++){
+    var c=hands[0][i];
+    var ok=playable(c)&&cur===0&&!over;
+    var col=RED[c.s]?'red':'black';
+    var d=document.createElement('div');
+    d.className='hcard '+col+(ok?' playable':'')+(ok?'':' dim');
+    d.innerHTML='<div class="top">'+rk(c.r)+'<br>'+c.s+'</div><div class="bot">'+rk(c.r)+'<br>'+c.s+'</div>';
+    if(ok){(function(card){d.onclick=function(){humanPlay(card);};})(c);}
+    handEl.appendChild(d);
+  }
+
+  // ステータス
+  if(!over){
+    if(cur===0){
+      document.getElementById('msg').textContent=canPlay(hands[0])
+        ?'✨ カードをタップして置いてください'
+        :'置けるカードがありません。パスしてください';
+      document.getElementById('turn').textContent='あなたのターン';
+    }else{
+      document.getElementById('msg').textContent='CPU'+cur+' が考え中...';
+      document.getElementById('turn').textContent='CPU'+cur+' のターン';
+    }
+  }
+
+  var passBtn=document.getElementById('pass-btn');
+  passBtn.disabled=over||cur!==0||passes[0]>=MAX_PASS||canPlay(hands[0]);
+  document.getElementById('pass-left').textContent='パス残り: '+(MAX_PASS-passes[0])+'回';
+}
+
+startGame();
+</script>
+</body>
+</html>
