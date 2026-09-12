@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>花札 こいこい</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700;900&family=Zen+Antique&display=swap');
+
+  :root {
+    --red: #c0392b;
+    --dark-red: #922b21;
+    --gold: #d4ac0d;
+    --dark-green: #1e4d2b;
+    --light-green: #27ae60;
+    --tan: #f5e6c8;
+    --dark-tan: #e8d5a3;
+    --black: #1a1a1a;
+    --dark-bg: #0d1f0f;
+    --felt: #1a3a1a;
+    --card-w: 56px;
+    --card-h: 84px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Serif JP', serif;
+    background: var(--dark-bg);
+    color: #f0e8d0;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at top, #0d2e10 0%, #050f06 100%);
+  }
+
+  #screen-title {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; text-align: center;
+    background: linear-gradient(160deg, #0a1a0b 0%, #1a3a1e 50%, #0a1a0b 100%);
+  }
+
+  .title-logo {
+    font-family: 'Zen Antique', serif;
+    font-size: clamp(48px, 10vw, 96px);
+    color: var(--gold);
+    text-shadow: 0 0 30px rgba(212,172,13,0.5), 3px 3px 0 #5a3e00;
+    letter-spacing: 0.15em;
+    margin-bottom: 8px;
+  }
+
+  .title-sub {
+    font-size: clamp(20px, 4vw, 32px);
+    color: #e8d5a3;
+    letter-spacing: 0.3em;
+    margin-bottom: 48px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  }
+
+  .title-cards-row {
+    display: flex; gap: 12px; margin-bottom: 48px; flex-wrap: wrap; justify-content: center;
+  }
+
+  .btn-start {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 22px;
+    font-weight: 700;
+    padding: 16px 64px;
+    background: var(--red);
+    color: #fff;
+    border: 3px solid var(--dark-red);
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.2em;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(192,57,43,0.6), 0 2px 0 #7b1a14;
+  }
+  .btn-start:hover { background: #e74c3c; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(192,57,43,0.8), 0 4px 0 #7b1a14; }
+  .btn-start:active { transform: translateY(1px); }
+
+  #screen-game { display: none; flex-direction: column; min-height: 100vh; padding: 8px; }
+
+  .game-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; background: rgba(0,0,0,0.4);
+    border-radius: 8px; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;
+  }
+
+  .score-panel {
+    display: flex; flex-direction: column; align-items: center;
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(212,172,13,0.3);
+    border-radius: 6px; padding: 6px 16px; min-width: 90px;
+  }
+  .score-label { font-size: 11px; color: #aaa; letter-spacing: 0.1em; }
+  .score-value { font-size: 22px; font-weight: 700; color: var(--gold); }
+
+  .msg-box {
+    flex: 1; text-align: center; min-width: 160px;
+    font-size: 14px; color: #e8d5a3;
+    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px;
+  }
+
+  .btn-koikoi {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 16px; font-weight: 700;
+    padding: 10px 24px;
+    background: var(--red); color: #fff;
+    border: 2px solid var(--dark-red);
+    border-radius: 4px; cursor: pointer;
+    letter-spacing: 0.1em; transition: all 0.2s;
+    display: none;
+  }
+  .btn-koikoi:hover { background: #e74c3c; }
+
+  .btn-agari {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 16px; font-weight: 700;
+    padding: 10px 24px;
+    background: var(--gold); color: var(--black);
+    border: 2px solid #9a7b00;
+    border-radius: 4px; cursor: pointer;
+    letter-spacing: 0.1em; transition: all 0.2s;
+    display: none;
+  }
+  .btn-agari:hover { background: #e6c200; }
+
+  .game-area {
+    display: flex; flex-direction: column; gap: 8px; flex: 1;
+  }
+
+  .area-label {
+    font-size: 11px; color: #999; letter-spacing: 0.15em;
+    margin-bottom: 4px; text-align: center;
+  }
+
+  .hand-area {
+    background: rgba(0,0,0,0.3); border-radius: 8px;
+    padding: 8px; min-height: 110px;
+  }
+
+  .field-area {
+    background: var(--felt);
+    background-image: radial-gradient(ellipse at center, #1e4a1e 0%, #0f2810 100%);
+    border-radius: 8px; padding: 10px; min-height: 120px;
+    border: 2px solid rgba(212,172,13,0.2);
+    box-shadow: inset 0 2px 12px rgba(0,0,0,0.5);
+  }
+
+  .captured-area {
+    background: rgba(0,0,0,0.3); border-radius: 8px;
+    padding: 8px; min-height: 80px;
+  }
+
+  .cards-row {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    justify-content: center; align-items: flex-start;
+  }
+
+  /* カード */
+  .card {
+    width: var(--card-w); height: var(--card-h);
+    border-radius: 5px; cursor: pointer;
+    position: relative; flex-shrink: 0;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 1.5px solid rgba(0,0,0,0.7);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .card:hover { transform: translateY(-6px) scale(1.05); box-shadow: 0 8px 20px rgba(0,0,0,0.8); }
+  .card.selected { transform: translateY(-10px) scale(1.08); box-shadow: 0 0 0 3px var(--gold), 0 10px 24px rgba(212,172,13,0.6); }
+  .card.highlight { box-shadow: 0 0 0 3px #27ae60, 0 6px 16px rgba(39,174,96,0.5); animation: pulse-green 0.8s infinite alternate; }
+  .card.back { cursor: default; }
+  .card.back:hover { transform: none; }
+
+  @keyframes pulse-green {
+    from { box-shadow: 0 0 0 3px #27ae60, 0 4px 12px rgba(39,174,96,0.3); }
+    to { box-shadow: 0 0 0 4px #2ecc71, 0 6px 20px rgba(46,204,113,0.7); }
+  }
+
+  .card svg { width: 100%; height: 100%; display: block; }
+
+  /* 得点表示 */
+  .yaku-popup {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.5);
+    background: rgba(10,20,10,0.95);
+    border: 3px solid var(--gold);
+    border-radius: 12px; padding: 24px 40px;
+    text-align: center; z-index: 100;
+    opacity: 0; pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    min-width: 280px;
+  }
+  .yaku-popup.show { opacity: 1; transform: translate(-50%,-50%) scale(1); pointer-events: auto; }
+  .yaku-title { font-family: 'Zen Antique', serif; font-size: 28px; color: var(--gold); margin-bottom: 12px; }
+  .yaku-list { font-size: 16px; color: #e8d5a3; line-height: 2; }
+  .yaku-pts { font-size: 32px; font-weight: 900; color: #e74c3c; margin-top: 8px; }
+  .yaku-btns { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+
+  /* 結果画面 */
+  #screen-result {
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; text-align: center; padding: 32px;
+  }
+  .result-title { font-family: 'Zen Antique', serif; font-size: 48px; color: var(--gold); margin-bottom: 24px; }
+  .result-detail { font-size: 18px; line-height: 2.5; margin-bottom: 32px; }
+
+  /* 月名ラベル */
+  .month-chip {
+    font-size: 9px; position: absolute; bottom: 2px; right: 3px;
+    color: rgba(255,255,255,0.7); text-shadow: 0 1px 2px #000;
+    pointer-events: none;
+  }
+
+  /* アニメ */
+  @keyframes deal-in {
+    from { opacity: 0; transform: translateY(-40px) rotate(-5deg); }
+    to { opacity: 1; transform: translateY(0) rotate(0); }
+  }
+  .deal-anim { animation: deal-in 0.4s ease-out both; }
+
+  .deck-count {
+    font-size: 11px; color: #aaa; text-align: center; margin-top: 4px;
+  }
+
+  .round-info {
+    font-size: 12px; color: var(--gold); letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+
+<!-- タイトル画面 -->
+<div id="screen-title">
+  <div class="title-logo">花　札</div>
+  <div class="title-sub">こいこい</div>
+  <div class="title-cards-row" id="title-cards"></div>
+  <button class="btn-start" onclick="startGame()">は じ め る</button>
+  <div style="margin-top:24px;font-size:12px;color:#888;">プレイヤー vs CPU ・ 1月〜12月 ・ 音声あり</div>
+</div>
+
+<!-- ゲーム画面 -->
+<div id="screen-game">
+  <div class="game-header">
+    <div class="score-panel">
+      <div class="score-label">プレイヤー</div>
+      <div class="score-value" id="p-score">0</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+      <div class="round-info" id="round-info">1月（睦月）</div>
+      <div class="msg-box" id="msg-box">カードを選んでください</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-koikoi" id="btn-koikoi" onclick="doKoikoi()">こいこい！</button>
+        <button class="btn-agari" id="btn-agari" onclick="doAgari()">あがり</button>
+      </div>
+    </div>
+    <div class="score-panel">
+      <div class="score-label">CPU</div>
+      <div class="score-value" id="c-score">0</div>
+    </div>
+  </div>
+
+  <div class="game-area">
+    <!-- CPU手札 -->
+    <div class="hand-area">
+      <div class="area-label">▲ CPU の手札</div>
+      <div class="cards-row" id="cpu-hand"></div>
+    </div>
+
+    <!-- 場 -->
+    <div class="field-area">
+      <div class="area-label">── 場札 ──</div>
+      <div class="cards-row" id="field-cards"></div>
+      <div class="deck-count" id="deck-count">山: 24枚</div>
+    </div>
+
+    <!-- プレイヤー手札 -->
+    <div class="hand-area">
+      <div class="area-label">▼ あなたの手札</div>
+      <div class="cards-row" id="player-hand"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <!-- プレイヤー取り札 -->
+      <div class="captured-area" style="flex:1;min-width:160px;">
+        <div class="area-label">あなたの取り札</div>
+        <div class="cards-row" id="player-captured"></div>
+      </div>
+      <!-- CPU取り札 -->
+      <div class="captured-area" style="flex:1;min-width:160px;">
+        <div class="area-label">CPU の取り札</div>
+        <div class="cards-row" id="cpu-captured"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 結果画面 -->
+<div id="screen-result">
+  <div class="result-title" id="result-title">おわり</div>
+  <div class="result-detail" id="result-detail"></div>
+  <button class="btn-start" onclick="location.reload()">もう一度</button>
+</div>
+
+<!-- 役ポップアップ -->
+<div class="yaku-popup" id="yaku-popup">
+  <div class="yaku-title" id="yaku-title">役ができました！</div>
+  <div class="yaku-list" id="yaku-list"></div>
+  <div class="yaku-pts" id="yaku-pts"></div>
+  <div class="yaku-btns" id="yaku-btns"></div>
+</div>
+
+<script>
+// ===== 音声合成 =====
+// Chromeバグ対策: 約14秒ごとにresumeを呼ぶ
+let _synthKeepAlive = null;
+function _startKeepAlive() {
+  if (_synthKeepAlive) return;
+  _synthKeepAlive = setInterval(() => {
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }
+  }, 12000);
+}
+
+// 音声キュー管理
+let _speakQueue = [];
+let _isSpeaking = false;
+
+function _processQueue() {
+  if (_isSpeaking || _speakQueue.length === 0) return;
+  const {text, rate, pitch} = _speakQueue.shift();
+  _isSpeaking = true;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'ja-JP';
+  u.rate = rate;
+  u.pitch = pitch;
+  const voices = window.speechSynthesis.getVoices();
+  const jpVoice = voices.find(v => v.lang.startsWith('ja'));
+  if (jpVoice) u.voice = jpVoice;
+  u.onend = () => { _isSpeaking = false; _processQueue(); };
+  u.onerror = () => { _isSpeaking = false; _processQueue(); };
+  window.speechSynthesis.speak(u);
+  _startKeepAlive();
+}
+
+const speak = (text, rate=0.78, pitch=1.0) => {
+  if (!window.speechSynthesis) return;
+  // 前のキューをクリアして新しいものだけ流す（ゲーム中の重複防止）
+  _speakQueue = [{text, rate, pitch}];
+  if (_isSpeaking) {
+    window.speechSynthesis.cancel();
+    _isSpeaking = false;
+  }
+  // 少し待ってから再生（cancel後すぐspeakするとChromeで失敗するため）
+  setTimeout(_processQueue, 80);
+};
+
+// 音声ロード（voiceschangedを待つ）
+let _voicesReady = false;
+function _loadVoices() {
+  const v = window.speechSynthesis.getVoices();
+  if (v.length > 0) _voicesReady = true;
+}
+if (window.speechSynthesis) {
+  _loadVoices();
+  window.speechSynthesis.addEventListener('voiceschanged', _loadVoices);
+}
+
+// ===== 花札データ =====
+// 月, 種別: 0=カス, 1=短冊, 2=タネ, 3=光, 点数
+const MONTHS = ['睦月','如月','弥生','卯月','皐月','水無月','文月','葉月','長月','神無月','霜月','師走'];
+const PLANT_NAMES = ['松','梅','桜','藤','菖蒲','牡丹','萩','芒','菊','紅葉','柳','桐'];
+
+// カード定義 [月(0-11), 種別(0=カス,1=短冊,2=タネ,3=光), 名前]
+const CARDS_DEF = [];
+const addCard = (m,t,n) => CARDS_DEF.push({month:m, type:t, name:n, id:CARDS_DEF.length});
+
+// 1月 松
+addCard(0,3,'松に鶴'); addCard(0,1,'松に赤短'); addCard(0,0,'松のカス'); addCard(0,0,'松のカス');
+// 2月 梅
+addCard(1,2,'梅にうぐいす'); addCard(1,1,'梅に赤短'); addCard(1,0,'梅のカス'); addCard(1,0,'梅のカス');
+// 3月 桜
+addCard(2,3,'桜に幕'); addCard(2,1,'桜に赤短'); addCard(2,0,'桜のカス'); addCard(2,0,'桜のカス');
+// 4月 藤
+addCard(3,2,'藤にカッコウ'); addCard(3,1,'藤に短冊'); addCard(3,0,'藤のカス'); addCard(3,0,'藤のカス');
+// 5月 菖蒲
+addCard(4,2,'菖蒲に八橋'); addCard(4,1,'菖蒲に短冊'); addCard(4,0,'菖蒲のカス'); addCard(4,0,'菖蒲のカス');
+// 6月 牡丹
+addCard(5,2,'牡丹に蝶'); addCard(5,1,'牡丹に青短'); addCard(5,0,'牡丹のカス'); addCard(5,0,'牡丹のカス');
+// 7月 萩
+addCard(6,2,'萩にイノシシ'); addCard(6,1,'萩に短冊'); addCard(6,0,'萩のカス'); addCard(6,0,'萩のカス');
+// 8月 芒
+addCard(7,3,'芒に月'); addCard(7,2,'芒に雁'); addCard(7,0,'芒のカス'); addCard(7,0,'芒のカス');
+// 9月 菊
+addCard(8,2,'菊に盃'); addCard(8,1,'菊に青短'); addCard(8,0,'菊のカス'); addCard(8,0,'菊のカス');
+// 10月 紅葉
+addCard(9,2,'紅葉に鹿'); addCard(9,1,'紅葉に青短'); addCard(9,0,'紅葉のカス'); addCard(9,0,'紅葉のカス');
+// 11月 柳
+addCard(10,3,'柳に小野道風'); addCard(10,2,'柳にツバメ'); addCard(10,1,'柳に短冊'); addCard(10,0,'柳のカス');
+// 12月 桐
+addCard(11,3,'桐に鳳凰'); addCard(11,0,'桐のカス'); addCard(11,0,'桐のカス'); addCard(11,0,'桐のカス');
+
+// ===== カードSVG描画 =====
+// 色パレット
+const COLORS = [
+  ['#2d5a1b','#f5e6c8'],  // 松: 深緑/ベージュ
+  ['#6b2d6b','#ffd4e8'],  // 梅: 紫/ピンク
+  ['#c44569','#ffe4f0'],  // 桜: ローズ/淡ピンク
+  ['#5b2d8e','#dcc8ff'],  // 藤: 紫/薄紫
+  ['#1a5276','#c8e8ff'],  // 菖蒲: 青/水色
+  ['#8e1a3a','#ffc8d4'],  // 牡丹: 深ローズ/ピンク
+  ['#8b4513','#ffecd4'],  // 萩: 茶/肌色
+  ['#2c3e50','#d4e8c8'],  // 芒: 濃紺/黄緑
+  ['#4a235a','#e8d4ff'],  // 菊: 深紫/薄紫
+  ['#7b1c1c','#ffcc99'],  // 紅葉: 深赤/オレンジ
+  ['#1a3a5a','#b0c8e8'],  // 柳: 深青/薄青
+  ['#1a4a2a','#c8e8d4'],  // 桐: 深緑/薄緑
+];
+
+const SYMBOLS = ['🌲','🌸','🌸','🌿','🌺','🌸','🍂','🌾','🌼','🍁','🌿','🌿'];
+const TYPE_SYMBOL = ['','🎴','✦','★'];
+const TYPE_NAME = ['カス','短冊','タネ','光'];
+
+function makeCardSVG(card, isBack=false) {
+  if (isBack) {
+    return `<svg viewBox="0 0 56 84" xmlns="http://www.w3.org/2000/svg">
+      <rect width="56" height="84" fill="#1a1a4a" rx="4"/>
+      <rect x="3" y="3" width="50" height="78" fill="none" stroke="#d4ac0d" stroke-width="1.5" rx="3"/>
+      <rect x="6" y="6" width="44" height="72" fill="none" stroke="#d4ac0d" stroke-width="0.5" stroke-dasharray="2,2" rx="2"/>
+      <text x="28" y="47" text-anchor="middle" font-size="22" fill="#d4ac0d">花</text>
+    </svg>`;
+  }
+  const m = card.month;
+  const [bg, fg] = COLORS[m];
+  const plant = PLANT_NAMES[m];
+  const pts = card.type === 3 ? 20 : card.type === 2 ? 10 : card.type === 1 ? 5 : 1;
+  const isKo = card.type === 3;
+  const isNeta = card.type === 2;
+  const isTan = card.type === 1;
+
+  let deco = '';
+  if (isKo) {
+    deco = `<circle cx="28" cy="30" r="14" fill="${fg}" opacity="0.3"/>
+      <text x="28" y="35" text-anchor="middle" font-size="18" fill="${fg}">★</text>`;
+  } else if (isNeta) {
+    deco = `<text x="28" y="35" text-anchor="middle" font-size="16" fill="${fg}">✦</text>`;
+  } else if (isTan) {
+    // 短冊
+    deco = `<rect x="10" y="22" width="36" height="14" fill="#e8d5a3" rx="2"/>
+      <text x="28" y="33" text-anchor="middle" font-size="8" fill="#8b0000">あかよろし</text>`;
+    if (m === 5 || m === 8 || m === 9) {
+      deco = `<rect x="10" y="22" width="36" height="14" fill="#3a6ea8" rx="2"/>
+        <text x="28" y="33" text-anchor="middle" font-size="8" fill="#fff">みよしの</text>`;
+    }
+  } else {
+    deco = `<text x="28" y="38" text-anchor="middle" font-size="12" fill="${fg}" opacity="0.6">${SYMBOLS[m]}</text>`;
+  }
+
+  return `<svg viewBox="0 0 56 84" xmlns="http://www.w3.org/2000/svg">
+    <rect width="56" height="84" fill="${bg}" rx="4"/>
+    <rect x="1" y="1" width="54" height="82" fill="none" stroke="${fg}" stroke-width="1" rx="3" opacity="0.6"/>
+    <text x="28" y="18" text-anchor="middle" font-size="11" fill="${fg}" font-weight="bold">${plant}</text>
+    ${deco}
+    <text x="5" y="76" font-size="9" fill="${fg}" opacity="0.9">${MONTHS[m].charAt(0)}</text>
+    <text x="51" y="76" text-anchor="end" font-size="9" fill="${fg}" opacity="0.9">${pts}</text>
+    ${isKo ? `<text x="28" y="74" text-anchor="middle" font-size="8" fill="${fg}">光</text>` : ''}
+  </svg>`;
+}
+
+// ===== ゲーム状態 =====
+let G = {};
+
+function initGame() {
+  const deck = [...CARDS_DEF].sort(() => Math.random()-0.5);
+  G = {
+    deck: deck,
+    playerHand: deck.splice(0,8),
+    cpuHand: deck.splice(0,8),
+    field: deck.splice(0,8),
+    playerCaptured: [],
+    cpuCaptured: [],
+    turn: 'player',  // 'player' or 'cpu'
+    selectedCard: null,
+    phase: 'select',  // select, match
+    round: 0,
+    totalRounds: 12,
+    playerTotal: 0,
+    cpuTotal: 0,
+    koikoiPlayer: false,
+    koikoiCpu: false,
+    waiting: false,
+    month: 0,
+  };
+}
+
+// ===== 役判定 =====
+function calcYaku(captured) {
+  const yakuList = [];
+  const has = (id) => captured.some(c=>c.id===id);
+  const type = (t) => captured.filter(c=>c.type===t);
+  const lights = type(3);
+  const seeds = type(2);
+  const ribbons = type(1);
+  const chaff = type(0);
+
+  // 五光
+  if (lights.length >= 5) { yakuList.push({name:'五光', pts:10}); }
+  // 四光（雨なし）
+  else if (lights.length >= 4 && !has(40)) { yakuList.push({name:'四光', pts:8}); }
+  // 雨四光
+  else if (lights.length >= 4 && has(40)) { yakuList.push({name:'雨四光', pts:7}); }
+  // 三光
+  else if (lights.length >= 3 && !has(40)) { yakuList.push({name:'三光', pts:5}); }
+
+  // 猪鹿蝶
+  if (has(24) && has(36) && has(20)) yakuList.push({name:'猪鹿蝶', pts:5});
+
+  // 花見で一杯
+  if (has(8) && has(32)) yakuList.push({name:'花見で一杯', pts:3});
+  // 月見で一杯
+  if (has(28) && has(32)) yakuList.push({name:'月見で一杯', pts:3});
+
+  // 赤短（松・梅・桜の短冊）
+  if (has(1) && has(5) && has(9)) yakuList.push({name:'赤短', pts:5});
+  // 青短（牡丹・菊・紅葉の短冊）
+  if (has(21) && has(33) && has(37)) yakuList.push({name:'青短', pts:5});
+
+  // タネ
+  if (seeds.length >= 5) yakuList.push({name:`${seeds.length}タネ`, pts: seeds.length-4});
+  // 短冊
+  if (ribbons.length >= 5) yakuList.push({name:`${ribbons.length}短冊`, pts: ribbons.length-4});
+  // カス
+  if (chaff.length >= 10) yakuList.push({name:`${chaff.length}カス`, pts: chaff.length-9});
+
+  const total = yakuList.reduce((s,y)=>s+y.pts, 0);
+  return {yakuList, total};
+}
+
+// ===== 場からのマッチ =====
+function getMatches(card, fieldCards) {
+  return fieldCards.filter(f => f.month === card.month);
+}
+
+// ===== UI更新 =====
+function renderAll() {
+  renderArea('cpu-hand', G.cpuHand, true);
+  renderArea('field-cards', G.field, false, true);
+  renderArea('player-hand', G.playerHand, false, true);
+  renderArea('player-captured', G.playerCaptured);
+  renderArea('cpu-captured', G.cpuCaptured);
+  document.getElementById('deck-count').textContent = `山: ${G.deck.length}枚`;
+  document.getElementById('round-info').textContent = `第${G.round+1}回戦　${MONTHS[G.month]}（${G.month+1}月）`;
+}
+
+function renderArea(id, cards, faceDown=false, clickable=false) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  cards.forEach((card,i) => {
+    const div = document.createElement('div');
+    div.className = 'card deal-anim' + (faceDown ? ' back' : '');
+    div.style.animationDelay = `${i*0.05}s`;
+    div.innerHTML = makeCardSVG(card, faceDown);
+    if (!faceDown && id !== 'player-captured' && id !== 'cpu-captured') {
+      div.dataset.id = card.id;
+      if (clickable) div.onclick = () => onCardClick(card, id);
+    }
+    el.appendChild(div);
+  });
+}
+
+function highlightMatches(card) {
+  document.querySelectorAll('#field-cards .card').forEach(el => {
+    el.classList.remove('highlight');
+    const c = CARDS_DEF.find(x=>x.id===parseInt(el.dataset.id));
+    if (c && c.month === card.month) el.classList.add('highlight');
+  });
+  document.querySelectorAll('#player-hand .card').forEach(el => {
+    el.classList.remove('selected');
+    if (parseInt(el.dataset.id) === card.id) el.classList.add('selected');
+  });
+}
+
+function clearHighlights() {
+  document.querySelectorAll('.card').forEach(el => el.classList.remove('highlight','selected'));
+}
+
+function setMsg(txt) { document.getElementById('msg-box').textContent = txt; }
+
+// ===== カードクリック処理 =====
+function onCardClick(card, areaId) {
+  if (G.waiting || G.turn !== 'player') return;
+
+  if (areaId === 'player-hand') {
+    if (G.phase === 'select') {
+      G.selectedCard = card;
+      G.phase = 'match';
+      highlightMatches(card);
+      const matches = getMatches(card, G.field);
+      if (matches.length === 0) {
+        setMsg(`「${card.name}」を場に出します（合わせなし）`);
+        setTimeout(() => playCard(card, null), 500);
+      } else {
+        setMsg(`「${card.name}」を選択。場のカードと合わせてください`);
+      }
+    }
+  } else if (areaId === 'field-cards' && G.phase === 'match' && G.selectedCard) {
+    const matches = getMatches(G.selectedCard, G.field);
+    if (card.month === G.selectedCard.month) {
+      playCard(G.selectedCard, card);
+    }
+  }
+}
+
+function playCard(handCard, fieldCard) {
+  G.waiting = true;
+  clearHighlights();
+
+  // 手札から除去
+  G.playerHand = G.playerHand.filter(c => c.id !== handCard.id);
+
+  let captured = [];
+  if (fieldCard) {
+    // 同月合わせ - 場に同月が複数あれば全取り
+    const matches = G.field.filter(c => c.month === handCard.month);
+    if (matches.length === 3) {
+      captured = [...matches, handCard];
+      G.field = G.field.filter(c => c.month !== handCard.month);
+    } else {
+      captured = [handCard, fieldCard];
+      G.field = G.field.filter(c => c.id !== fieldCard.id);
+    }
+    speak(`${handCard.name}、取り！`, 0.85, 1.0);
+  } else {
+    G.field.push(handCard);
+    speak(`${handCard.name}`, 0.75, 1.0);
+  }
+
+  G.playerCaptured.push(...captured);
+  renderAll();
+  setMsg('山札を引いています…');
+
+  setTimeout(() => drawAndPlay('player', captured.length > 0), 1400);
+}
+
+function drawAndPlay(who, justCaptured) {
+  if (G.deck.length === 0) {
+    endRound(); return;
+  }
+  const drawn = G.deck.shift();
+  const isPlayer = who === 'player';
+  const captured = isPlayer ? G.playerCaptured : G.cpuCaptured;
+
+  const matches = getMatches(drawn, G.field);
+  let drawnCapture = [];
+
+  if (matches.length > 0) {
+    if (matches.length === 3) {
+      drawnCapture = [...matches, drawn];
+      G.field = G.field.filter(c => c.month !== drawn.month);
+    } else {
+      drawnCapture = [drawn, matches[0]];
+      G.field = G.field.filter(c => c.id !== matches[0].id);
+    }
+    speak(`${drawn.name}、引いて取り！`, 0.82, 1.0);
+  } else {
+    G.field.push(drawn);
+  }
+
+  if (isPlayer) G.playerCaptured.push(...drawnCapture);
+  else G.cpuCaptured.push(...drawnCapture);
+
+  renderAll();
+
+  // 役チェック
+  const {yakuList, total} = calcYaku(isPlayer ? G.playerCaptured : G.cpuCaptured);
+
+  if (yakuList.length > 0 && total > 0) {
+    setTimeout(() => showYaku(yakuList, total, isPlayer), 900);
+  } else {
+    setTimeout(() => nextTurn(isPlayer), 1100);
+  }
+}
+
+function showYaku(yakuList, total, isPlayer) {
+  const popup = document.getElementById('yaku-popup');
+  document.getElementById('yaku-title').textContent = isPlayer ? '役ができました！' : 'CPUに役が！';
+  document.getElementById('yaku-list').innerHTML = yakuList.map(y=>`${y.name}（${y.pts}点）`).join('<br>');
+  document.getElementById('yaku-pts').textContent = `合計 ${total} 点`;
+  document.getElementById('yaku-btns').innerHTML = '';
+
+  if (isPlayer) {
+    speak(`役ができました！${yakuList.map(y=>y.name).join('、')}`, 0.75, 1.05);
+    const b1 = document.createElement('button');
+    b1.className = 'btn-koikoi'; b1.textContent = 'こいこい！'; b1.style.display='inline-block';
+    b1.onclick = () => { hideYaku(); doKoikoiInline(); };
+    const b2 = document.createElement('button');
+    b2.className = 'btn-agari'; b2.textContent = 'あがり'; b2.style.display='inline-block';
+    b2.onclick = () => { hideYaku(); doAgariInline(total, isPlayer); };
+    document.getElementById('yaku-btns').append(b1, b2);
+  } else {
+    speak(`CPUに役！${yakuList.map(y=>y.name).join('、')}`, 0.75, 0.9);
+    // CPUは自動判断（50%でこいこい）
+    const cpuKoikoi = total <= 3 && Math.random() > 0.4;
+    const b = document.createElement('button');
+    b.className = 'btn-start'; b.style.cssText = 'font-size:14px;padding:8px 24px;';
+    b.textContent = cpuKoikoi ? 'CPUがこいこい！' : 'CPUがあがり';
+    b.onclick = () => {
+      hideYaku();
+      if (cpuKoikoi) {
+        G.koikoiCpu = true;
+        speak('こいこい！', 0.85, 0.8);
+        setMsg('CPUがこいこい！続けます…');
+        setTimeout(() => nextTurn(false), 1800);
+      } else {
+        doAgariInline(total, false);
+      }
+    };
+    document.getElementById('yaku-btns').appendChild(b);
+    popup.classList.add('show');
+    setTimeout(() => b.click(), 4000);
+    return;
+  }
+
+  popup.classList.add('show');
+}
+
+function hideYaku() {
+  document.getElementById('yaku-popup').classList.remove('show');
+}
+
+function doKoikoiInline() {
+  G.koikoiPlayer = true;
+  speak('こいこい！', 0.85, 1.1);
+  setMsg('こいこい！続けます…');
+  G.waiting = false;
+  setTimeout(() => nextTurn(true), 1600);
+}
+
+function doAgariInline(pts, isPlayer) {
+  const koiBonus = isPlayer ? (G.koikoiCpu ? 2 : 1) : (G.koikoiPlayer ? 2 : 1);
+  const finalPts = pts * koiBonus;
+  if (isPlayer) {
+    G.playerTotal += finalPts;
+    speak(`あがり！${finalPts}点！`, 0.78, 1.1);
+    document.getElementById('p-score').textContent = G.playerTotal;
+  } else {
+    G.cpuTotal += finalPts;
+    speak(`CPUのあがり。${finalPts}点`, 0.75, 0.9);
+    document.getElementById('c-score').textContent = G.cpuTotal;
+  }
+  setMsg(`${isPlayer?'あなた':'CPU'}のあがり！ ${finalPts}点`);
+  setTimeout(() => nextRound(), 3500);
+}
+
+function nextTurn(wasPlayer) {
+  G.waiting = false;
+  G.phase = 'select';
+  G.selectedCard = null;
+
+  if (G.playerHand.length === 0 && G.deck.length === 0) {
+    endRound(); return;
+  }
+
+  if (wasPlayer) {
+    G.turn = 'cpu';
+    setMsg('CPUのターンです…');
+    setTimeout(cpuTurn, 2000);
+  } else {
+    G.turn = 'player';
+    setMsg('カードを選んでください');
+    G.waiting = false;
+  }
+}
+
+// ===== CPUターン =====
+function cpuTurn() {
+  if (G.cpuHand.length === 0) { endRound(); return; }
+
+  // CPUの戦略: 取れるカードを優先
+  let best = null;
+  let bestMatch = null;
+  for (const card of G.cpuHand) {
+    const m = getMatches(card, G.field);
+    if (m.length > 0) {
+      // 光・タネ優先
+      const highVal = m.find(x=>x.type>=2);
+      best = card;
+      bestMatch = highVal || m[0];
+      if (card.type >= 2) break;
+    }
+  }
+  if (!best) best = G.cpuHand[Math.floor(Math.random()*G.cpuHand.length)];
+
+  G.cpuHand = G.cpuHand.filter(c=>c.id!==best.id);
+  let captured = [];
+  if (bestMatch) {
+    const matches = G.field.filter(c=>c.month===best.month);
+    if (matches.length === 3) {
+      captured = [...matches, best];
+      G.field = G.field.filter(c=>c.month!==best.month);
+    } else {
+      captured = [best, bestMatch];
+      G.field = G.field.filter(c=>c.id!==bestMatch.id);
+    }
+  } else {
+    G.field.push(best);
+  }
+  G.cpuCaptured.push(...captured);
+  renderAll();
+
+  setTimeout(() => drawAndPlay('cpu', captured.length>0), 1400);
+}
+
+// ===== ラウンド終了 =====
+function endRound() {
+  // 残り手札を全員カス扱い（点数なし）
+  setMsg(`${G.round+1}回戦終了`);
+  speak(`${G.round+1}回戦終了`, 0.78, 1.0);
+  setTimeout(nextRound, 3200);
+}
+
+function nextRound() {
+  G.round++;
+  G.koikoiPlayer = false;
+  G.koikoiCpu = false;
+  document.getElementById('p-score').textContent = G.playerTotal;
+  document.getElementById('c-score').textContent = G.cpuTotal;
+
+  if (G.round >= G.totalRounds) {
+    showResult(); return;
+  }
+  G.month = G.round % 12;
+  initRound();
+}
+
+function initRound() {
+  const deck = [...CARDS_DEF].sort(() => Math.random()-0.5);
+  G.deck = deck;
+  G.playerHand = deck.splice(0,8);
+  G.cpuHand = deck.splice(0,8);
+  G.field = deck.splice(0,8);
+  G.playerCaptured = [];
+  G.cpuCaptured = [];
+  G.turn = 'player';
+  G.phase = 'select';
+  G.selectedCard = null;
+  G.waiting = false;
+  renderAll();
+  speak(`${G.round+1}回戦、${MONTHS[G.month]}の札`, 0.75, 1.0);
+  setMsg('カードを選んでください');
+}
+
+// ===== 結果 =====
+function showResult() {
+  document.getElementById('screen-game').style.display = 'none';
+  const res = document.getElementById('screen-result');
+  res.style.display = 'flex';
+  const winner = G.playerTotal > G.cpuTotal ? 'あなたの勝ち！' : G.playerTotal < G.cpuTotal ? 'CPUの勝ち' : '引き分け';
+  document.getElementById('result-title').textContent = winner;
+  document.getElementById('result-detail').innerHTML =
+    `あなた：${G.playerTotal}点<br>CPU：${G.cpuTotal}点`;
+  speak(winner, 1.0, G.playerTotal > G.cpuTotal ? 1.2 : 0.8);
+}
+
+// ===== ゲーム開始 =====
+function startGame() {
+  document.getElementById('screen-title').style.display = 'none';
+  document.getElementById('screen-game').style.display = 'flex';
+  initGame();
+  G.month = 0;
+  renderAll();
+  speak('花札、こいこい。はじめます', 0.72, 1.0);
+  setMsg('カードを選んでください');
+}
+
+// ===== タイトルのデコレーション =====
+window.onload = () => {
+  const row = document.getElementById('title-cards');
+  const demoIds = [0, 8, 28, 40, 44]; // 光カード群
+  demoIds.forEach(id => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.width = '64px'; div.style.height = '96px';
+    div.innerHTML = makeCardSVG(CARDS_DEF[id]);
+    row.appendChild(div);
+  });
+  // 音声準備
+  if (window.speechSynthesis) {
+    setTimeout(() => {
+      window.speechSynthesis.getVoices();
+    }, 100);
+  }
+};
+</script>
+
+<!-- ルール・解説セクション -->
+<div id="guide-section" style="
+  background: linear-gradient(180deg, #0a1a0b 0%, #0d2010 100%);
+  color: #e8d5a3;
+  font-family: 'Noto Serif JP', serif;
+  padding: 60px 24px 80px;
+  border-top: 2px solid rgba(212,172,13,0.25);
+">
+  <div style="max-width: 860px; margin: 0 auto;">
+
+    <h2 style="
+      font-family: 'Zen Antique', serif;
+      font-size: clamp(28px, 5vw, 42px);
+      color: #d4ac0d;
+      text-align: center;
+      letter-spacing: 0.2em;
+      margin-bottom: 48px;
+      text-shadow: 0 0 20px rgba(212,172,13,0.3);
+    ">花札とは</h2>
+
+    <!-- 概要 -->
+    <div style="
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(212,172,13,0.2);
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 32px;
+      line-height: 2.0;
+      font-size: 15px;
+    ">
+      <p>花札（はなふだ）は、江戸時代に日本で生まれたカードゲームです。48枚のカードが12ヶ月・各4枚に分かれており、それぞれの月を代表する花や植物が描かれています。ポルトガルから伝来したカルタを元に日本独自に発展したとされ、明治以降には全国に広まりました。任天堂も花札の製造から事業を始めたことで知られています。</p>
+    </div>
+
+    <!-- 12ヶ月の花 -->
+    <h3 style="font-size: 20px; color: #d4ac0d; letter-spacing: 0.15em; margin-bottom: 20px; border-bottom: 1px solid rgba(212,172,13,0.2); padding-bottom: 8px;">🌸 12ヶ月の植物</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-bottom: 40px;">
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">1月　松（むつき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">鶴と松。鶴は長寿の象徴。<br>赤短冊「あかよろし」。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">2月　梅（きさらぎ）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">うぐいすと梅。春告鳥。<br>赤短冊「あかよろし」。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">3月　桜（やよい）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">幕（まく）と桜。花見の幕。<br>赤短冊「みよしの」。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">4月　藤（うづき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">カッコウと藤。初夏の藤棚。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">5月　菖蒲（さつき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">八橋（やつはし）と菖蒲。<br>伊勢物語の情景。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">6月　牡丹（みなづき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">蝶と牡丹。青短冊「みよしの」。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">7月　萩（ふみづき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">イノシシと萩。秋の七草。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">8月　芒（はづき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">月と雁（がん）。お月見の情景。<br>光札は満月。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">9月　菊（ながつき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">盃（さかずき）と菊。<br>青短冊「みよしの」。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">10月　紅葉（かんなづき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">鹿と紅葉。青短冊「みよしの」。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">11月　柳（しもつき）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">小野道風（おののとうふう）。<br>雨の中のかえる。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:12px 16px;">
+        <div style="color:#d4ac0d;font-weight:700;margin-bottom:4px;">12月　桐（しわす）</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.7;">鳳凰（ほうおう）と桐。<br>百鳥の王。</div>
+      </div>
+    </div>
+
+    <!-- カードの種類 -->
+    <h3 style="font-size: 20px; color: #d4ac0d; letter-spacing: 0.15em; margin-bottom: 20px; border-bottom: 1px solid rgba(212,172,13,0.2); padding-bottom: 8px;">🎴 カードの種類と点数</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 40px;">
+      <div style="background:rgba(212,172,13,0.08);border:1px solid rgba(212,172,13,0.3);border-radius:8px;padding:16px;">
+        <div style="color:#d4ac0d;font-size:18px;font-weight:700;margin-bottom:6px;">★ 光札　20点</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.8;">最も価値の高いカード。松の鶴、桜の幕、芒の月、柳の小野道風、桐の鳳凰の5枚。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:16px;">
+        <div style="color:#aaa;font-size:18px;font-weight:700;margin-bottom:6px;">✦ タネ　10点</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.8;">動物や器物が描かれたカード。梅のうぐいす、菊の盃など各月1枚ずつ（11月を除く）。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:16px;">
+        <div style="color:#c8b890;font-size:18px;font-weight:700;margin-bottom:6px;">🎴 短冊　5点</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.8;">短冊（たんざく）が描かれたカード。赤短冊と青短冊がある。各月1枚ずつ（8・12月を除く）。</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,172,13,0.15);border-radius:8px;padding:16px;">
+        <div style="color:#888;font-size:18px;font-weight:700;margin-bottom:6px;">　カス　1点</div>
+        <div style="font-size:13px;color:#c8b890;line-height:1.8;">植物だけが描かれた基本カード。各月2〜4枚。点数は低いが数を集めると役になる。</div>
+      </div>
+    </div>
+
+    <!-- こいこいルール -->
+    <h3 style="font-size: 20px; color: #d4ac0d; letter-spacing: 0.15em; margin-bottom: 20px; border-bottom: 1px solid rgba(212,172,13,0.2); padding-bottom: 8px;">📖 こいこいの遊び方</h3>
+    <div style="
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(212,172,13,0.15);
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 32px;
+      line-height: 2.1;
+      font-size: 14px;
+    ">
+      <ol style="padding-left: 1.4em; color: #e0d0b0;">
+        <li style="margin-bottom: 12px;">各プレイヤーに8枚、場に8枚配り、残りを山札とします。</li>
+        <li style="margin-bottom: 12px;"><b style="color:#d4ac0d;">手札から1枚選び</b>、場に同じ月のカードがあれば合わせて取ります。なければ場に出します。</li>
+        <li style="margin-bottom: 12px;">次に<b style="color:#d4ac0d;">山札から1枚めくり</b>、同様に場と合わせます。</li>
+        <li style="margin-bottom: 12px;">取り札で<b style="color:#d4ac0d;">役（やく）</b>ができたら、「<span style="color:#c0392b;font-weight:700;">こいこい</span>」か「<span style="color:#d4ac0d;font-weight:700;">あがり</span>」を選びます。</li>
+        <li style="margin-bottom: 12px;">「こいこい」を選ぶとゲームを続行。さらに役を狙えますが、相手にあがられると<b style="color:#c0392b;">点数が2倍</b>になります。</li>
+        <li>「あがり」を選ぶと役の点数を獲得してラウンド終了。</li>
+      </ol>
+    </div>
+
+    <!-- 主な役一覧 -->
+    <h3 style="font-size: 20px; color: #d4ac0d; letter-spacing: 0.15em; margin-bottom: 20px; border-bottom: 1px solid rgba(212,172,13,0.2); padding-bottom: 8px;">🏆 主な役（やく）一覧</h3>
+    <div style="overflow-x:auto; margin-bottom: 40px;">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:500px;">
+        <thead>
+          <tr style="background:rgba(212,172,13,0.15);color:#d4ac0d;">
+            <th style="padding:10px 14px;text-align:left;border-bottom:1px solid rgba(212,172,13,0.3);">役名</th>
+            <th style="padding:10px 14px;text-align:center;border-bottom:1px solid rgba(212,172,13,0.3);">点数</th>
+            <th style="padding:10px 14px;text-align:left;border-bottom:1px solid rgba(212,172,13,0.3);">条件</th>
+          </tr>
+        </thead>
+        <tbody style="color:#c8b890;">
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#fff;font-weight:700;">五光（ごこう）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">10点</td>
+            <td style="padding:10px 14px;">光札5枚すべてを取る</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;font-weight:700;">四光（しこう）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">8点</td>
+            <td style="padding:10px 14px;">雨（柳）を除く光札4枚</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;font-weight:700;">雨四光（あめしこう）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">7点</td>
+            <td style="padding:10px 14px;">雨（柳）を含む光札4枚</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;font-weight:700;">三光（さんこう）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">5点</td>
+            <td style="padding:10px 14px;">雨を除く光札3枚</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;font-weight:700;">猪鹿蝶（いのしかちょう）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">5点</td>
+            <td style="padding:10px 14px;">萩のイノシシ・紅葉の鹿・牡丹の蝶</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;font-weight:700;">赤短（あかたん）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">5点</td>
+            <td style="padding:10px 14px;">松・梅・桜の赤短冊3枚</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;font-weight:700;">青短（あおたん）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">5点</td>
+            <td style="padding:10px 14px;">牡丹・菊・紅葉の青短冊3枚</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;font-weight:700;">花見で一杯</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">3点</td>
+            <td style="padding:10px 14px;">桜の幕＋菊の盃</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;font-weight:700;">月見で一杯</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;font-weight:700;">3点</td>
+            <td style="padding:10px 14px;">芒の月＋菊の盃</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;">タネ（5枚以上）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;">1点〜</td>
+            <td style="padding:10px 14px;">タネ5枚で1点、以降1枚増えるごと+1点</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 14px;color:#e8d5a3;">短冊（5枚以上）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;">1点〜</td>
+            <td style="padding:10px 14px;">短冊5枚で1点、以降1枚増えるごと+1点</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 14px;color:#e8d5a3;">カス（10枚以上）</td>
+            <td style="padding:10px 14px;text-align:center;color:#d4ac0d;">1点〜</td>
+            <td style="padding:10px 14px;">カス10枚で1点、以降1枚増えるごと+1点</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 「あかよろし」について -->
+    <h3 style="font-size: 20px; color: #d4ac0d; letter-spacing: 0.15em; margin-bottom: 16px; border-bottom: 1px solid rgba(212,172,13,0.2); padding-bottom: 8px;">📜 「あかよろし」とは</h3>
+    <div style="
+      background: rgba(192,57,43,0.08);
+      border: 1px solid rgba(192,57,43,0.25);
+      border-radius: 10px;
+      padding: 20px 24px;
+      line-height: 2.0;
+      font-size: 14px;
+      color: #e0d0b0;
+      margin-bottom: 32px;
+    ">
+      <p>「あかよろし（赤よろし）」とは、松・梅・桜の<b style="color:#d4ac0d;">赤い短冊</b>に書かれた言葉です。「赤きよし」が転じた言葉とされ、「赤くて良い・めでたい」という意味を持ちます。これら3枚をそろえると<b style="color:#c0392b;">赤短（あかたん）</b>という役になり5点が入ります。古くから縁起の良い言葉として親しまれてきました。</p>
+      <p style="margin-top:12px;">なお、牡丹・菊・紅葉の青短冊には「<b style="color:#4a9eca;">みよしの（三芳野）</b>」と書かれており、奈良の吉野山を指します。</p>
+    </div>
+
+    <div style="text-align:center;color:#666;font-size:12px;margin-top:40px;letter-spacing:0.1em;">
+      ── 花札 こいこい ──
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
