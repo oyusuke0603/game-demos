@@ -91,12 +91,21 @@ function startGame(){
   const cfg=DIFFS[mode];pairs=cfg.pairs;
   document.getElementById('mcount').textContent='0/'+pairs;
   document.getElementById('grid').style.gridTemplateColumns='repeat('+cfg.cols+',1fr)';
-  let pool=[];RANKS.forEach(r=>SUITS.forEach(s=>pool.push({rank:r,suit:s})));
-  pool.sort(()=>Math.random()-.5);
-  let usedRanks={};
-  for(let c of pool){if(!usedRanks[c.rank])usedRanks[c.rank]=[];if(usedRanks[c.rank].length<2)usedRanks[c.rank].push(c);if(Object.values(usedRanks).filter(v=>v.length===2).length===pairs)break;}
-  let chosen=[];for(let r in usedRanks)if(usedRanks[r].length===2)chosen.push(...usedRanks[r]);
-  chosen=chosen.slice(0,pairs*2).sort(()=>Math.random()-.5);cards=chosen;
+  
+  // 52枚のカード（13ランク × 4スート）から pairs 個ランダムに選ぶ
+  let allCards=[];
+  RANKS.forEach(r=>SUITS.forEach(s=>allCards.push({rank:r,suit:s})));
+  allCards.sort(()=>Math.random()-.5);
+  
+  // 選んだカードから pairs 個取り、それぞれ2枚ずつ用意
+  let chosen=[];
+  for(let i=0;i<pairs&&i<allCards.length;i++){
+    chosen.push(allCards[i]);
+    chosen.push(allCards[i]);
+  }
+  chosen.sort(()=>Math.random()-.5);
+  cards=chosen;
+  
   const grid=document.getElementById('grid');grid.innerHTML='';
   cards.forEach((c,i)=>{const el=document.createElement('div');el.className='card';el.innerHTML=`<div class="card-inner"><div class="card-front">${makeFrontSVG()}</div><div class="card-back">${makeBackHTML(c.rank,c.suit)}</div></div>`;el.addEventListener('click',()=>flip(el,i));grid.appendChild(el);});
 }
@@ -108,7 +117,8 @@ function flip(el,idx){
   if(flipped.length===2){
     moves++;document.getElementById('moves').textContent=moves;lock=true;
     const[a,b]=flipped;
-    if(cards[a.idx].rank===cards[b.idx].rank){
+    // スート（記号）とランク（数字）の両方が同じかチェック
+    if(cards[a.idx].rank===cards[b.idx].rank&&cards[a.idx].suit===cards[b.idx].suit){
       a.el.classList.add('matched');b.el.classList.add('matched');matchedN++;
       document.getElementById('mcount').textContent=matchedN+'/'+pairs;
       flipped=[];lock=false;
