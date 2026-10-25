@@ -70,7 +70,11 @@ body{font-family:sans-serif;background:#f5f5f5;min-height:100vh;}
 }
 .face-top{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;}
 .face-bot{display:flex;flex-direction:column;align-items:flex-end;transform:rotate(180deg);line-height:1.1;}
-.face-center{display:flex;align-items:center;justify-content:center;flex:1;}
+.face-center{position:relative;flex:1;margin:0 4%;}
+.pip{position:absolute;transform:translate(-50%,-50%);font-size:clamp(12px,3.6vw,22px);line-height:1;}
+.court{position:absolute;inset:8% 6%;border:1.5px solid currentColor;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.court-rank{font-size:clamp(24px,8vw,46px);font-weight:700;line-height:1;}
+.court-suit{font-size:clamp(16px,5vw,28px);line-height:1;margin-top:4%;}
 .face-rank{font-size:clamp(10px,3vw,16px);font-weight:700;}
 .face-suit{font-size:clamp(8px,2.5vw,13px);}
 .face-big{font-size:clamp(22px,7vw,44px);line-height:1;}
@@ -138,15 +142,36 @@ function makeBackHTML(){
   </div>`;
 }
 
+const L=28,C=50,R=72;
+const PIPS={
+  'A':[[C,50,1]],
+  '2':[[C,15],[C,85]],
+  '3':[[C,15],[C,50],[C,85]],
+  '4':[[L,15],[R,15],[L,85],[R,85]],
+  '5':[[L,15],[R,15],[C,50],[L,85],[R,85]],
+  '6':[[L,15],[R,15],[L,50],[R,50],[L,85],[R,85]],
+  '7':[[L,15],[R,15],[C,32],[L,50],[R,50],[L,85],[R,85]],
+  '8':[[L,15],[R,15],[C,32],[L,50],[R,50],[C,68],[L,85],[R,85]],
+  '9':[[L,12],[R,12],[L,37],[R,37],[C,50],[L,63],[R,63],[L,88],[R,88]],
+  '10':[[L,12],[R,12],[C,25],[L,37],[R,37],[L,63],[R,63],[C,75],[L,88],[R,88]]
+};
+function makeCenterHTML(rank,suit){
+  if(PIPS[rank]){
+    return PIPS[rank].map(([x,y,big])=>{
+      const flip=y>50&&!big?'transform:translate(-50%,-50%) rotate(180deg);':'';
+      return `<span class="pip ${suit.cls}" style="left:${x}%;top:${y}%;${flip}${big?'font-size:clamp(26px,8vw,48px);':''}">${suit.sym}</span>`;
+    }).join('');
+  }
+  return `<div class="court ${suit.cls}"><span class="court-rank">${rank}</span><span class="court-suit">${suit.sym}</span></div>`;
+}
+
 function makeFrontHTML(rank,suit){
   return `<div class="card-face-front">
     <div class="face-top">
       <span class="face-rank ${suit.cls}">${rank}</span>
       <span class="face-suit ${suit.cls}">${suit.sym}</span>
     </div>
-    <div class="face-center">
-      <span class="face-big ${suit.cls}">${suit.sym}</span>
-    </div>
+    <div class="face-center">${makeCenterHTML(rank,suit)}</div>
     <div class="face-bot">
       <span class="face-rank ${suit.cls}">${rank}</span>
       <span class="face-suit ${suit.cls}">${suit.sym}</span>
@@ -176,15 +201,9 @@ function startGame(){
   let pool=[];
   RANKS.forEach(r=>SUITS.forEach(s=>pool.push({rank:r,suit:s})));
   pool.sort(()=>Math.random()-.5);
-  let used={};
-  for(let c of pool){
-    if(!used[c.rank])used[c.rank]=[];
-    if(used[c.rank].length<2)used[c.rank].push(c);
-    if(Object.values(used).filter(v=>v.length===2).length===pairs)break;
-  }
   let chosen=[];
-  for(let r in used)if(used[r].length===2)chosen.push(...used[r]);
-  chosen=chosen.slice(0,pairs*2).sort(()=>Math.random()-.5);
+  pool.slice(0,pairs).forEach(c=>chosen.push(c,{rank:c.rank,suit:c.suit}));
+  chosen.sort(()=>Math.random()-.5);
   cards=chosen;
 
   const grid=document.getElementById('grid');
@@ -216,7 +235,7 @@ function flip(el,idx){
     document.getElementById('moves').textContent=moves;
     lock=true;
     const[a,b]=flipped;
-    if(cards[a.idx].rank===cards[b.idx].rank){
+    if(cards[a.idx].rank===cards[b.idx].rank&&cards[a.idx].suit===cards[b.idx].suit){
       a.el.classList.remove('open');a.el.classList.add('matched');
       b.el.classList.remove('open');b.el.classList.add('matched');
       matchedN++;
