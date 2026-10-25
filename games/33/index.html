@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ブラウザで動く 懐かしいスロットカーゲーム</title>
+<style>
+  :root{
+    --wood:#6b4423; --wood-d:#3d2412;
+    --panel:#1b1410; --panel2:#2a1f17;
+    --cream:#f4e6c8; --dim:#b9a47f;
+    --red:#e8452c; --yellow:#ffc933; --green:#58c26a; --blue:#4aa3ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;
+    background:var(--wood-d);color:var(--cream);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;touch-action:none;}
+  #app{position:fixed;inset:0;height:100dvh;width:100vw;background:radial-gradient(ellipse at 50% 40%,#7a4e29 0%,#3d2412 85%);}
+  canvas#cv{position:absolute;inset:0;width:100%;height:100%;display:block;}
+
+  /* HUD */
+  #hud{position:absolute;left:0;right:0;top:0;display:none;justify-content:space-between;align-items:flex-start;
+    padding:calc(8px + env(safe-area-inset-top)) 12px 0;pointer-events:none;}
+  .hudbox{background:rgba(20,12,6,.72);border:2px solid #8a6a43;border-radius:8px;padding:5px 12px;min-width:92px;}
+  .hudbox small{display:block;font-size:10px;color:var(--dim);letter-spacing:.1em;}
+  .hudbox b{font-size:20px;font-variant-numeric:tabular-nums;}
+  #center-msg{position:absolute;left:0;right:0;top:34%;text-align:center;font-size:min(22vw,120px);font-weight:900;
+    color:var(--yellow);text-shadow:0 4px 0 #7a3a00,0 0 24px rgba(255,160,0,.6);pointer-events:none;display:none;}
+  #center-msg.small{font-size:min(9vw,44px);color:#ff6a4a;text-shadow:0 3px 0 #500;}
+
+  /* meter & button */
+  #ctrl{position:absolute;left:0;right:0;bottom:0;display:none;flex-direction:column;align-items:center;gap:8px;
+    padding:0 12px calc(12px + env(safe-area-inset-bottom));pointer-events:none;}
+  #meter{position:relative;width:min(92vw,520px);height:26px;background:rgba(20,12,6,.8);border:2px solid #8a6a43;border-radius:13px;overflow:hidden;}
+  #meter .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#58c26a,#ffc933);}
+  #meter .danger{position:absolute;right:0;top:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(232,69,44,.55) 0 6px,rgba(120,20,10,.55) 6px 12px);}
+  #meter .mark{position:absolute;top:0;bottom:0;width:4px;background:#fff;box-shadow:0 0 6px #fff;}
+  #brakeLamp{position:absolute;right:10px;top:0;line-height:22px;font-size:12px;font-weight:900;color:#fff;
+    background:var(--red);padding:0 8px;border-radius:11px;margin-top:1px;display:none;}
+  #accel{pointer-events:auto;width:min(92vw,520px);height:min(20vh,110px);border-radius:16px;border:3px solid #fff3;
+    background:linear-gradient(#e8452c,#a8250f);color:#fff;font-size:22px;font-weight:900;letter-spacing:.12em;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 6px 0 #5a1608;transition:transform .05s;}
+  #accel.on{transform:translateY(4px);box-shadow:0 2px 0 #5a1608;background:linear-gradient(#ff6a4a,#d03a1c);}
+  #accel small{font-size:12px;font-weight:400;letter-spacing:.04em;opacity:.85;margin-top:4px;}
+  @media (hover:hover) and (pointer:fine){ #accel{height:70px;} }
+
+  /* screens */
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+    padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));overflow-y:auto;
+    background:rgba(24,14,7,.88);touch-action:pan-y;}
+  .screen.show{display:flex;}
+  .screen h1{margin:0 0 6px;font-size:clamp(26px,7vw,54px);color:var(--yellow);letter-spacing:.06em;
+    text-shadow:0 3px 0 #7a3a00;text-align:center;line-height:1.15;}
+  .screen h2{margin:0 0 14px;font-size:clamp(18px,4.5vw,28px);color:var(--cream);text-align:center;}
+  .sub{color:var(--dim);margin:0 0 18px;text-align:center;font-size:14px;line-height:1.6;}
+  .btn{font:inherit;font-weight:800;font-size:18px;color:#fff;background:linear-gradient(#e8452c,#a8250f);
+    border:2px solid #fff4;border-radius:12px;padding:12px 32px;margin:6px;cursor:pointer;box-shadow:0 4px 0 #5a1608;}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #5a1608;}
+  .btn.sub2{background:linear-gradient(#5a4631,#3b2c1d);box-shadow:0 4px 0 #1d140b;font-size:15px;padding:10px 20px;}
+  .cards{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;width:100%;max-width:900px;}
+  .card{flex:1 1 220px;max-width:280px;min-width:200px;background:var(--panel2);border:3px solid #6b5236;border-radius:14px;
+    padding:12px 14px 14px;cursor:pointer;text-align:center;transition:transform .1s,border-color .1s;}
+  .card:hover,.card:active{transform:translateY(-3px);border-color:var(--yellow);}
+  .card canvas{width:100%;height:84px;display:block;margin-bottom:6px;}
+  .card .lv{display:inline-block;font-size:12px;font-weight:800;padding:2px 10px;border-radius:10px;color:#201208;margin-bottom:4px;}
+  .lv.e{background:var(--green);} .lv.n{background:var(--yellow);} .lv.h{background:var(--red);color:#fff;}
+  .card .nm{font-size:20px;font-weight:900;}
+  .card .ds{font-size:12px;color:var(--dim);margin:4px 0 8px;line-height:1.5;min-height:36px;}
+  .stat{display:flex;align-items:center;font-size:11px;color:var(--dim);margin:2px 0;}
+  .stat span{width:54px;text-align:left;}
+  .stat i{flex:1;height:7px;background:#0007;border-radius:4px;overflow:hidden;}
+  .stat i u{display:block;height:100%;background:var(--blue);}
+  .best{font-size:12px;color:var(--yellow);margin-top:6px;min-height:16px;}
+  #result .rows{background:var(--panel2);border:2px solid #6b5236;border-radius:12px;padding:12px 22px;margin:8px 0 14px;min-width:min(86vw,360px);}
+  #result .row{display:flex;justify-content:space-between;gap:20px;padding:5px 0;border-bottom:1px dashed #6b5236;font-size:16px;}
+  #result .row:last-child{border:none;}
+  #result .win{color:var(--yellow);} #result .lose{color:#ff6a4a;}
+  .tips{font-size:13px;color:var(--dim);line-height:1.8;text-align:center;margin:0 0 16px;}
+  #mute{position:absolute;right:10px;top:calc(76px + env(safe-area-inset-top));z-index:5;font-size:12px;padding:6px 10px;
+    background:#0008;border:1px solid #fff4;border-radius:8px;color:var(--cream);cursor:pointer;display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <div id="hud">
+    <div class="hudbox"><small>LAP</small><b id="hLap">1/3</b></div>
+    <div class="hudbox" style="text-align:center"><small>TIME</small><b id="hTime">0.00</b></div>
+    <div class="hudbox" style="text-align:right"><small>順位</small><b id="hPos">1位</b></div>
+  </div>
+  <div id="center-msg"></div>
+
+  <div id="ctrl">
+    <div id="meter"><div class="danger" id="mDanger"></div><div class="fill" id="mFill"></div><div class="mark" id="mMark"></div><div id="brakeLamp">ブレーキ!</div></div>
+    <div id="accel">加速<small>押している間だけ加速 / 離すとブレーキ（キーボード：スペース・↑）</small></div>
+  </div>
+
+  <div class="screen show" id="title">
+    <h1>懐かしい<br>スロットカーゲーム</h1>
+    <p class="sub">アクセルだけで走らせる、あの頃のスロットカー。<br>カーブで飛ばしすぎるとコースアウト！<br>ライバルより先に3周ゴールしよう。</p>
+    <button class="btn" id="btnStart">スタート</button>
+    <p class="tips" style="margin-top:14px">パソコン：スペースキー / ↑キー / マウス長押し<br>スマホ：画面下の赤いボタンを押し続ける</p>
+  </div>
+
+  <div class="screen" id="selCar">
+    <h2>車を選ぶ</h2>
+    <div class="cards" id="carCards"></div>
+    <button class="btn sub2" data-go="title">もどる</button>
+  </div>
+
+  <div class="screen" id="selCourse">
+    <h2>コースを選ぶ</h2>
+    <div class="cards" id="courseCards"></div>
+    <button class="btn sub2" data-go="selCar">車をえらびなおす</button>
+  </div>
+
+  <div class="screen" id="result">
+    <h1 id="rTitle">GOAL!</h1>
+    <div class="rows" id="rRows"></div>
+    <div>
+      <button class="btn" id="btnRetry">もう一度</button>
+      <button class="btn sub2" id="btnCourse">コース選択</button>
+      <button class="btn sub2" id="btnCar">車選択</button>
+    </div>
+  </div>
+
+  <div id="mute">音：ON</div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const W=1000,H=640,DS=4,LAPS=3,LANE=11;
+
+/* ---------------- データ ---------------- */
+const CARS=[
+  {id:'sedan',lv:'e',lvName:'簡単',name:'乗用車',desc:'どこにでもいるファミリーカー。遅いけれど曲がりやすい。',
+   vmax:300,acc:170,brake:430,G:780,color:'#3d8bff',cpu:'#4cc36a',st:[.45,.5,1]},
+  {id:'touge',lv:'n',lvName:'普通',name:'峠車',desc:'軽くてバランス型。ブレーキのタイミングが鍵。',
+   vmax:380,acc:235,brake:390,G:570,color:'#f2f2f2',cpu:'#ff9f2e',st:[.7,.8,.7]},
+  {id:'speed',lv:'h',lvName:'難しい',name:'スピードカー',desc:'直線は最速。でもカーブでは滑りやすい上級者向け。',
+   vmax:470,acc:300,brake:340,G:410,color:'#ff3b3b',cpu:'#ffd400',st:[1,1,.4]},
+];
+const COURSES=[
+  {id:'easy',lv:'e',lvName:'簡単',name:'ファミリーサーキット',cpu:.80,
+   desc:'ゆるやかなカーブだけのオーバルコース。',
+   pts:[[220,150],[500,100],[780,150],[900,320],[780,490],[500,540],[220,490],[100,320]]},
+  {id:'normal',lv:'n',lvName:'普通',name:'ワインディング',cpu:.89,
+   desc:'S字とヘアピンのある、峠のようなコース。',
+   pts:[[150,140],[450,100],[650,200],[850,130],[940,300],[790,390],[870,500],[700,575],[470,440],[300,550],[110,470],[90,300]]},
+  {id:'hard',lv:'h',lvName:'難しい',name:'ヘアピンマスター',cpu:.95,
+   desc:'急カーブの連続。ブレーキを制する者が勝つ。',
+   pts:[[120,110],[400,80],[540,200],[410,310],[620,390],[760,250],[870,110],[960,270],[830,410],[930,520],[760,600],[560,480],[390,570],[200,600],[70,480],[230,380],[80,260]]},
+];
+
+/* ---------------- コース生成 ---------------- */
+function buildTrack(pts){
+  const n=pts.length,raw=[];
+  for(let i=0;i<n;i++){
+    const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
+    for(let k=0;k<40;k++){
+      const t=k/40,t2=t*t,t3=t2*t;
+      raw.push([0,1].map(a=>.5*((2*p1[a])+(-p0[a]+p2[a])*t+(2*p0[a]-5*p1[a]+4*p2[a]-p3[a])*t2+(-p0[a]+3*p1[a]-3*p2[a]+p3[a])*t3)));
+    }
+  }
+  /* 急すぎる折れ角をならす */
+  const m0=raw.length;
+  for(let ps=0;ps<60;ps++){const cp=raw.map(r=>r.slice());for(let i=0;i<m0;i++){let sx=0,sy=0;for(let o=-3;o<=3;o++){const q=cp[(i+o+m0)%m0];sx+=q[0];sy+=q[1];}raw[i]=[sx/7,sy/7];}}
+  const m=raw.length,cum=[0];
+  for(let i=1;i<=m;i++){const a=raw[i-1],b=raw[i%m];cum.push(cum[i-1]+Math.hypot(b[0]-a[0],b[1]-a[1]));}
+  const total=cum[m],N=Math.round(total/DS),ds=total/N;
+  const x=new Float32Array(N),y=new Float32Array(N);
+  let j=0;
+  for(let k=0;k<N;k++){
+    const tg=k*ds;
+    while(cum[j+1]<tg)j++;
+    const a=raw[j],b=raw[(j+1)%m],f=(tg-cum[j])/(cum[j+1]-cum[j]);
+    x[k]=a[0]+(b[0]-a[0])*f;y[k]=a[1]+(b[1]-a[1])*f;
+  }
+  const tx=new Float32Array(N),ty=new Float32Array(N),th=new Float32Array(N),kap=new Float32Array(N);
+  for(let i=0;i<N;i++){
+    const a=(i-1+N)%N,b=(i+1)%N,dx=x[b]-x[a],dy=y[b]-y[a],l=Math.hypot(dx,dy);
+    tx[i]=dx/l;ty[i]=dy/l;th[i]=Math.atan2(ty[i],tx[i]);
+  }
+  const K=5;
+  for(let i=0;i<N;i++){
+    let d=th[(i+K)%N]-th[(i-K+N)%N];
+    while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+    kap[i]=d/(2*K*ds);
+  }
+  return {N,ds,L:N*ds,x,y,tx,ty,kap};
+}
+function laneK(T,i,d){const k=T.kap[i];return k/Math.max(.35,1-k*d);}
+function profile(T,car,d,margin){
+  const v=new Float32Array(T.N);
+  for(let i=0;i<T.N;i++){
+    const kl=Math.abs(laneK(T,i,d));
+    v[i]=Math.min(car.vmax,kl<1e-5?car.vmax:Math.sqrt(car.G*margin/kl));
+  }
+  for(let pass=0;pass<2;pass++)for(let i=T.N-1;i>=0;i--){
+    const j=(i+1)%T.N;
+    v[i]=Math.min(v[i],Math.sqrt(v[j]*v[j]+2*car.brake*.8*T.ds));
+  }
+  return v;
+}
+function trackPos(T,s,d){
+  const f0=s/T.ds,i=((Math.floor(f0)%T.N)+T.N)%T.N,j=(i+1)%T.N,f=f0-Math.floor(f0);
+  const tx=T.tx[i]+(T.tx[j]-T.tx[i])*f,ty=T.ty[i]+(T.ty[j]-T.ty[i])*f;
+  const px=T.x[i]+(T.x[j]-T.x[i])*f,py=T.y[i]+(T.y[j]-T.y[i])*f;
+  return {x:px-ty*d,y:py+tx*d,a:Math.atan2(ty,tx),tx,ty,i};
+}
+/* 左法線 n=(-ty,tx) */
+
+/* ---------------- 描画ヘルパ ---------------- */
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function drawCar(c,type,color){
+  c.fillStyle='#111';
+  if(type==='sedan'){
+    [[-10,-8.5],[6,-8.5],[-10,5],[6,5]].forEach(p=>{rr(c,p[0],p[1],6,3.5,1);c.fill();});
+    c.fillStyle=color;rr(c,-15,-7,30,14,4);c.fill();
+    c.fillStyle='#bfe0ff';rr(c,-6,-5.5,13,11,2.5);c.fill();
+    c.fillStyle='rgba(0,0,50,.35)';rr(c,-6,-5.5,4,11,2);c.fill();
+    c.fillStyle='#fff7b0';c.fillRect(13.5,-6,2,3);c.fillRect(13.5,3,2,3);
+    c.fillStyle='#d22';c.fillRect(-15,-6,1.5,3);c.fillRect(-15,3,1.5,3);
+  }else if(type==='touge'){
+    [[-10,-8.5],[6,-8.5],[-10,5],[6,5]].forEach(p=>{rr(c,p[0],p[1],6.5,3.5,1);c.fill();});
+    c.fillStyle=color;rr(c,-15,-6.5,30,13,4);c.fill();
+    c.fillStyle='#161616';rr(c,3,-1.8,11,3.6,1);c.fill();rr(c,-14,-1.8,6,3.6,1);c.fill();
+    c.fillStyle='#222';rr(c,-7,-5,10,10,2);c.fill();
+    c.fillStyle='#161616';c.fillRect(-17,-7.5,3.5,15);
+    c.fillStyle='#fff7b0';c.fillRect(13.5,-5.5,2,2.5);c.fillRect(13.5,3,2,2.5);
+  }else{
+    [[7,-9],[-12,-9],[7,4.5],[-12,4.5]].forEach(p=>{rr(c,p[0],p[1],7,4.5,1.5);c.fill();});
+    c.fillStyle=color;
+    c.beginPath();c.moveTo(17,0);c.lineTo(7,-4);c.lineTo(-8,-6);c.lineTo(-14,-5);c.lineTo(-14,5);c.lineTo(-8,6);c.lineTo(7,4);c.closePath();c.fill();
+    c.fillStyle='#222';c.fillRect(12,-8.5,3,17);c.fillRect(-18,-8.5,3.5,17);
+    c.fillStyle='#fff';c.beginPath();c.arc(-2,0,3.2,0,7);c.fill();
+    c.fillStyle='#222';c.fillRect(-9,-1,5,2);
+  }
+}
+function drawTrackTo(c,T,scale){
+  const path=()=>{c.beginPath();for(let i=0;i<T.N;i++)i?c.lineTo(T.x[i],T.y[i]):c.moveTo(T.x[i],T.y[i]);c.closePath();};
+  c.lineJoin='round';
+  path();c.lineWidth=58;c.strokeStyle='rgba(0,0,0,.35)';c.save();c.translate(3,4);c.stroke();c.restore();
+  path();c.lineWidth=54;c.strokeStyle='#d8d2c4';c.stroke();
+  path();c.lineWidth=48;c.strokeStyle='#4a4f56';c.stroke();
+  for(const d of [-LANE,LANE]){
+    c.beginPath();
+    for(let i=0;i<T.N;i++){const px=T.x[i]-T.ty[i]*d,py=T.y[i]+T.tx[i]*d;i?c.lineTo(px,py):c.moveTo(px,py);}
+    c.closePath();c.lineWidth=7;c.strokeStyle='#5f656d';c.stroke();
+    c.lineWidth=2;c.strokeStyle='#15171a';c.stroke();
+  }
+  path();c.lineWidth=1.5;c.strokeStyle='rgba(255,255,255,.55)';c.setLineDash([8,10]);c.stroke();c.setLineDash([]);
+  /* スタートライン */
+  const p=trackPos(T,0,0);
+  c.save();c.translate(p.x,p.y);c.rotate(p.a);
+  for(let r=0;r<8;r++)for(let q=0;q<2;q++){c.fillStyle=(r+q)%2?'#fff':'#111';c.fillRect(q*5-5,-24+r*6,5,6);}
+  c.restore();
+}
+
+/* ---------------- 音 ---------------- */
+let actx=null,master,musicG,osc,egain,sq,sqG,noiseBuf,muted=false,nextT=0,bstep=0,bgmTimer=0;
+const CH=[[57,60,64],[53,57,60],[48,52,55],[55,59,62]],BASS=[45,41,36,43];
+const mf=n=>440*Math.pow(2,(n-69)/12);
+function audioInit(){
+  if(actx){if(actx.state==='suspended')actx.resume();return;}
+  try{
+    actx=new (window.AudioContext||window.webkitAudioContext)();
+    master=actx.createGain();master.gain.value=muted?0:1;master.connect(actx.destination);
+    musicG=actx.createGain();musicG.gain.value=.5;musicG.connect(master);
+    osc=actx.createOscillator();egain=actx.createGain();
+    osc.type='sawtooth';osc.frequency.value=60;egain.gain.value=0;
+    const lp=actx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;
+    osc.connect(lp);lp.connect(egain);egain.connect(master);osc.start();
+    sq=actx.createOscillator();sqG=actx.createGain();sq.type='sawtooth';sq.frequency.value=1500;sqG.gain.value=0;
+    const bp=actx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1800;bp.Q.value=3;
+    sq.connect(bp);bp.connect(sqG);sqG.connect(master);sq.start();
+    noiseBuf=actx.createBuffer(1,actx.sampleRate*.6,actx.sampleRate);
+    const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    nextT=actx.currentTime+.1;bstep=0;
+    bgmTimer=setInterval(()=>{
+      while(nextT<actx.currentTime+.25){bgmStep(bstep++,nextT);nextT+=.2;}
+    },60);
+  }catch(e){actx=null;}
+}
+function tone(f,t,dur,type,vol,dest){
+  const o=actx.createOscillator(),g=actx.createGain();
+  o.type=type;o.frequency.value=f;
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(g);g.connect(dest||master);o.start(t);o.stop(t+dur+.02);
+}
+function noise(t,dur,vol,freq,dest){
+  const s=actx.createBufferSource(),g=actx.createGain(),f=actx.createBiquadFilter();
+  s.buffer=noiseBuf;f.type='lowpass';f.frequency.value=freq;
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  s.connect(f);f.connect(g);g.connect(dest||master);s.start(t);s.stop(t+dur);
+}
+function bgmStep(n,t){
+  const bar=Math.floor(n/8)%4,k=n%8,ch=CH[bar];
+  if(k%2===0)tone(mf(BASS[bar]+(k===4?12:0)),t,.18,'triangle',.22,musicG);
+  tone(mf(ch[[0,1,2,1,0,2,1,2][k]]+12),t,.16,'square',.07,musicG);
+  if(k%2===1)noise(t,.05,.05,6000,musicG);
+  if(k===0||k===4)noise(t,.09,.12,400,musicG);
+}
+function setMusic(v){if(actx)musicG.gain.setTargetAtTime(v,actx.currentTime,.2);}
+function engine(v,on,slip){
+  if(!actx)return;
+  const t=actx.currentTime;
+  osc.frequency.setTargetAtTime(70+v*1.5,t,.05);
+  egain.gain.setTargetAtTime(on?.05:0,t,.08);
+  sqG.gain.setTargetAtTime(on&&slip>.06?Math.min(.06,slip*.2):0,t,.04);
+}
+function beep(f,d,type){if(actx)tone(f,actx.currentTime,d,type||'square',.08);}
+function crash(){if(actx){noise(actx.currentTime,.6,.35,1500);tone(140,actx.currentTime,.4,'sawtooth',.12);}}
+function jingle(win){
+  if(!actx)return;const t=actx.currentTime;
+  (win?[72,76,79,84,79,84]:[67,64,62,55]).forEach((n,i)=>tone(mf(n),t+i*(win?.14:.28),win?.3:.45,win?'square':'triangle',.1));
+}
+function say(txt){
+  if(muted||!window.speechSynthesis)return;
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='ja-JP';u.rate=1.15;speechSynthesis.speak(u);}catch(e){}
+}
+
+/* ---------------- 状態 ---------------- */
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+let carDef=CARS[0],courseDef=COURSES[0],T=null,trackImg=null;
+let phase='menu',t0=0,raceT=0,cdT=0,lastCd=4;
+let player,cpu,profP,profC,derails=0,lapTimes=[],lapStart=0,msgT=0;
+const keys=new Set(),pointers=new Set();
+function throttle(){return keys.size>0||pointers.size>0;}
+
+function bestKey(car,course){return 'slotcar_best_'+car+'_'+course;}
+function getBest(car,course){try{const v=localStorage.getItem(bestKey(car,course));return v?parseFloat(v):null;}catch(e){return null;}}
+function setBest(car,course,v){try{localStorage.setItem(bestKey(car,course),String(v));}catch(e){}}
+const fmt=t=>{const m=Math.floor(t/60),s=t-m*60;return (m?m+':':'')+(m&&s<10?'0':'')+s.toFixed(2);};
+
+/* ---------------- 画面 ---------------- */
+function show(id){
+  setMusic(id===null?.18:.5);
+  ['title','selCar','selCourse','result'].forEach(s=>$(s).classList.toggle('show',s===id));
+  const race=id===null;
+  $('hud').style.display=race?'flex':'none';
+  $('ctrl').style.display=race?'flex':'none';
+  $('mute').style.display='block';
+}
+function statRow(label,v){return `<div class="stat"><span>${label}</span><i><u style="width:${v*100}%"></u></i></div>`;}
+function buildCards(){
+  const cc=$('carCards');cc.innerHTML='';
+  CARS.forEach(c=>{
+    const d=document.createElement('div');d.className='card';
+    d.innerHTML=`<canvas width="240" height="90"></canvas><span class="lv ${c.lv}">${c.lvName}</span><div class="nm">${c.name}</div><div class="ds">${c.desc}</div>`
+      +statRow('最高速',c.st[0])+statRow('加速',c.st[1])+statRow('曲がりやすさ',c.st[2]);
+    cc.appendChild(d);
+    const g=d.querySelector('canvas').getContext('2d');
+    g.translate(120,45);g.scale(2.6,2.6);drawCar(g,c.id,c.color);
+    d.onclick=()=>{carDef=c;beep(660,.08);buildCourseCards();show('selCourse');};
+  });
+}
+function buildCourseCards(){
+  const cc=$('courseCards');cc.innerHTML='';
+  COURSES.forEach(c=>{
+    const d=document.createElement('div');d.className='card';
+    const b=getBest(carDef.id,c.id);
+    d.innerHTML=`<canvas width="240" height="90"></canvas><span class="lv ${c.lv}">${c.lvName}</span><div class="nm">${c.name}</div><div class="ds">${c.desc}</div>`
+      +`<div class="best">${b?'ベスト '+fmt(b)+' 秒':'まだ記録なし'}</div>`;
+    cc.appendChild(d);
+    const g=d.querySelector('canvas').getContext('2d'),tt=buildTrack(c.pts);
+    const sc=Math.min(228/W,80/H);g.translate(120-W*sc/2,45-H*sc/2);g.scale(sc,sc);
+    g.lineJoin='round';g.beginPath();for(let i=0;i<tt.N;i++)i?g.lineTo(tt.x[i],tt.y[i]):g.moveTo(tt.x[i],tt.y[i]);g.closePath();
+    g.lineWidth=60;g.strokeStyle='#d8d2c4';g.stroke();g.lineWidth=46;g.strokeStyle='#5a5f66';g.stroke();
+    d.onclick=()=>{courseDef=c;beep(660,.08);startRace();};
+  });
+}
+
+/* ---------------- レース ---------------- */
+function mkCar(def,lane,color,isPlayer){
+  return {def,d:lane,color,s:0,v:0,slip:0,state:'run',timer:0,fx:0,fy:0,fvx:0,fvy:0,fa:0,spin:0,finished:false,finT:0,isPlayer};
+}
+function startRace(){
+  audioInit();
+  T=buildTrack(courseDef.pts);
+  trackImg=document.createElement('canvas');trackImg.width=W*2;trackImg.height=H*2;
+  const g=trackImg.getContext('2d');g.scale(2,2);drawTrackTo(g,T,2);
+  player=mkCar(carDef,-LANE,carDef.color,true);
+  cpu=mkCar(carDef,LANE,carDef.cpu,false);
+  profP=profile(T,carDef,player.d,.97);
+  profC=profile(T,carDef,cpu.d,.93);
+  derails=0;lapTimes=[];lapStart=0;raceT=0;
+  phase='ready';cdT=0;lastCd=4;
+  show(null);
+  $('center-msg').className='';
+  updateHud();
+}
+function crit(c){
+  const i=Math.floor(c.s/T.ds)%T.N,kl=Math.abs(laneK(T,(i+T.N)%T.N,c.d));
+  return kl<1e-5?9999:Math.sqrt(c.def.G/kl);
+}
+function stepCar(c,thr,dt){
+  const def=c.def;
+  if(c.state==='run'){
+    if(thr){c.v+=def.acc*(1-c.v/def.vmax)*dt;}else{c.v=Math.max(0,c.v-def.brake*dt);}
+    const vc=crit(c),over=c.v/vc;
+    if(over>1)c.slip+=dt*(1+(over-1)*12);else c.slip=Math.max(0,c.slip-dt*2.5);
+    if(c.slip>.45&&!c.finished){
+      const p=trackPos(T,c.s,c.d);
+      c.state='fly';c.timer=1.2;c.fx=p.x;c.fy=p.y;c.fa=p.a;
+      c.fvx=p.tx*c.v;c.fvy=p.ty*c.v;c.spin=(T.kap[p.i]>0?1:-1)*(5+Math.random()*4)*-1;
+      if(c.isPlayer){derails++;crash();say('コースアウト');flash('コースアウト!');}
+      return;
+    }
+    const i=Math.floor(c.s/T.ds);
+    c.s+=c.v*dt/Math.min(1.6,Math.max(.4,1-T.kap[((i%T.N)+T.N)%T.N]*c.d));
+  }else if(c.state==='fly'){
+    c.timer-=dt;c.fx+=c.fvx*dt;c.fy+=c.fvy*dt;c.fa+=c.spin*dt;
+    const f=Math.max(0,1-1.6*dt);c.fvx*=f;c.fvy*=f;c.spin*=f;
+    if(c.timer<=0){c.state='wait';c.timer=.9;c.v=0;}
+  }else{
+    c.timer-=dt;
+    if(c.timer<=0){c.state='run';c.slip=0;c.v=0;}
+  }
+}
+function cpuThrottle(){
+  const i=((Math.floor(cpu.s/T.ds)%T.N)+T.N)%T.N;
+  const target=profC[i]*courseDef.cpu;
+  return cpu.v<target;
+}
+let flashT=0;
+function flash(txt){const m=$('center-msg');m.textContent=txt;m.className='small';m.style.display='block';flashT=1.1;}
+
+function update(dt){
+  if(phase==='ready'){
+    cdT+=dt;
+    const n=3-Math.floor(cdT/.9);
+    if(cdT<2.7){
+      if(n!==lastCd){lastCd=n;beep(440,.15);say(['','ワン','ツー','スリー'][n]);}
+      const m=$('center-msg');m.className='';m.textContent=n;m.style.display='block';
+    }else{
+      phase='race';raceT=0;lastCd=0;beep(880,.35);say('ゴー');
+      const m=$('center-msg');m.className='';m.textContent='GO!';m.style.display='block';flashT=.8;
+    }
+    engine(0,false);return;
+  }
+  if(phase==='race'){
+    raceT+=dt;
+    stepCar(player,throttle(),dt);
+    stepCar(cpu,cpuThrottle(),dt);
+    const lap=Math.floor(player.s/T.L);
+    if(lap>lapTimes.length&&lap<LAPS){lapTimes.push(raceT-lapStart);lapStart=raceT;flash('LAP '+(lap+1));beep(700,.12);say(lap+1===LAPS?'ファイナルラップ':'ラップ'+(lap+1));}
+    if(!cpu.finished&&cpu.s>=LAPS*T.L){cpu.finished=true;cpu.finT=raceT;}
+    if(player.s>=LAPS*T.L){
+      player.finished=true;player.finT=raceT;lapTimes.push(raceT-lapStart);
+      finishRace();return;
+    }
+    engine(player.v,player.state==='run',player.slip);
+  }
+  if(flashT>0){flashT-=dt;if(flashT<=0)$('center-msg').style.display='none';}
+  updateHud();
+}
+function updateHud(){
+  if(!player)return;
+  const lap=Math.min(LAPS,Math.floor(player.s/T.L)+1);
+  $('hLap').textContent=lap+'/'+LAPS;
+  $('hTime').textContent=raceT.toFixed(2);
+  $('hPos').textContent=(player.s>=cpu.s?1:2)+'位';
+  /* メーター */
+  const vm=Math.max(...CARS.map(c=>c.vmax))*1.0;
+  const vc=Math.min(crit(player),vm);
+  $('mFill').style.width=Math.min(100,player.v/vm*100)+'%';
+  $('mMark').style.left=Math.min(98,vc/vm*100)+'%';
+  $('mDanger').style.left=Math.min(100,vc/vm*100)+'%';
+  const i=((Math.floor(player.s/T.ds)%T.N)+T.N)%T.N;
+  const need=player.state==='run'&&player.v>profP[i]*1.02&&phase==='race';
+  $('brakeLamp').style.display=need?'block':'none';
+  $('accel').classList.toggle('on',throttle());
+}
+function finishRace(){
+  phase='done';engine(0,false);
+  $('center-msg').style.display='none';
+  const total=player.finT,win=!cpu.finished;
+  const prev=getBest(carDef.id,courseDef.id);
+  const isNew=(prev===null||total<prev)&&win;
+  if(isNew)setBest(carDef.id,courseDef.id,total);
+  const bestLap=Math.min(...lapTimes);
+  $('rTitle').innerHTML=win?'<span class="win">YOU WIN!</span>':'<span class="lose">YOU LOSE...</span>';
+  const rows=[
+    ['車 / コース',carDef.name+' / '+courseDef.name],
+    ['タイム',fmt(total)+' 秒'+(isNew?'  NEW!':'')],
+    ...lapTimes.map((t,k)=>['LAP '+(k+1),fmt(t)+(t===bestLap?'  (最速)':'')]),
+    ['コースアウト',derails+' 回'],
+    ['ベスト記録',(isNew?fmt(total):prev?fmt(prev):'--')+' 秒'],
+  ];
+  $('rRows').innerHTML=rows.map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
+  setTimeout(()=>show('result'),700);
+  jingle(win);say(win?'ゴール、勝利です':'ゴール、残念');
+}
+
+/* ---------------- 描画 ---------------- */
+function resize(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.round(cv.clientWidth*dpr);cv.height=Math.round(cv.clientHeight*dpr);
+}
+function draw(){
+  const w=cv.width,h=cv.height;
+  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,w,h);
+  if(!T||phase==='menu')return;
+  const portrait=h>w;
+  /* HUD/ボタン分の余白 */
+  const top=h*.09,bot=h*.27;
+  const aw=w,ah=h-top-bot;
+  ctx.translate(aw/2,top+ah/2);
+  let sc;
+  if(portrait){ctx.rotate(Math.PI/2);sc=Math.min(ah/W,aw/H)*.97;}
+  else sc=Math.min(aw/W,ah/H)*.97;
+  ctx.scale(sc,sc);ctx.translate(-W/2,-H/2);
+  ctx.drawImage(trackImg,0,0,W,H);
+  [cpu,player].forEach(c=>drawOne(c));
+}
+function drawOne(c){
+  let x,y,a,lift=0,alpha=1;
+  if(c.state==='run'){
+    const p=trackPos(T,c.s,c.d);x=p.x;y=p.y;a=p.a;
+    if(c.slip>0)a+=Math.min(.7,c.slip*1.6)*(T.kap[p.i]>0?1:-1);
+  }else{x=c.fx;y=c.fy;a=c.fa;lift=c.state==='fly'?1:0;if(c.state==='wait'&&Math.floor(c.timer*10)%2)alpha=.35;}
+  ctx.save();ctx.globalAlpha=alpha;
+  ctx.translate(x+lift*3,y+lift*4);ctx.rotate(a);
+  if(c.slip>.08&&c.state==='run'){ctx.fillStyle='rgba(255,170,40,'+Math.min(.9,c.slip*2)+')';ctx.beginPath();ctx.arc(-15,0,4+c.slip*14,0,7);ctx.fill();}
+  const s=1+lift*.25;ctx.scale(s,s);
+  ctx.fillStyle='rgba(0,0,0,.35)';rr(ctx,-14,-6,30,14,4);ctx.fill();
+  drawCar(ctx,c.def.id,c.color);
+  ctx.restore();
+}
+
+/* ---------------- ループ ---------------- */
+let last=0;
+function loop(ts){
+  const dt=Math.min(.033,(ts-last)/1000||0);last=ts;
+  if(phase==='ready'||phase==='race'||phase==='done'){if(phase!=='done')update(dt);else if(player.state!=='run')stepCar(player,false,dt);}
+  draw();requestAnimationFrame(loop);
+}
+
+/* ---------------- 入力 ---------------- */
+addEventListener('keydown',e=>{
+  if(['Space','ArrowUp','KeyZ','KeyX'].includes(e.code)){keys.add(e.code);e.preventDefault();}
+});
+addEventListener('keyup',e=>{keys.delete(e.code);});
+addEventListener('blur',()=>{keys.clear();pointers.clear();});
+const ptDown=e=>{if(phase==='ready'||phase==='race'){pointers.add(e.pointerId);e.preventDefault();}};
+const ptUp=e=>{pointers.delete(e.pointerId);};
+['cv','accel'].forEach(id=>{
+  const el=$(id);
+  el.addEventListener('pointerdown',ptDown);
+});
+['pointerup','pointercancel'].forEach(t=>addEventListener(t,ptUp));
+addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('resize',resize);
+
+$('btnStart').onclick=()=>{audioInit();beep(660,.08);buildCards();show('selCar');};
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
+$('btnRetry').onclick=()=>startRace();
+$('btnCourse').onclick=()=>{phase='menu';buildCourseCards();show('selCourse');};
+$('btnCar').onclick=()=>{phase='menu';show('selCar');};
+$('mute').onclick=()=>{muted=!muted;$('mute').textContent='音：'+(muted?'OFF':'ON');if(master)master.gain.value=muted?0:1;if(muted&&window.speechSynthesis)speechSynthesis.cancel();audioInit();};
+
+resize();requestAnimationFrame(loop);
+
+/* テスト用 */
+window.__dbg={buildTrack,COURSES,CARS,get state(){return {phase,player,cpu,T};},startRace,update,crit,get prof(){return profP;},keys,pick:(c,k)=>{carDef=CARS[c];courseDef=COURSES[k];}};
+})();
+</script>
+</body>
+</html>
